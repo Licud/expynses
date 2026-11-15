@@ -16,7 +16,7 @@ class Expense(Base):
     price_pence: Mapped[int] 
     notes: Mapped[str]
     is_credit: Mapped[bool]
-    expense_type_id: Mapped[uuid.UUID] = mapped_column(ForeignKey="expense_types.id")
+    expense_type_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("expense_types.id"))
 
 
 class ExpenseType(Base):

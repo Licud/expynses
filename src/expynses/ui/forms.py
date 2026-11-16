@@ -2,6 +2,8 @@ import datetime
 import decimal
 import uuid
 
+from collections.abc import Callable
+
 import flet as ft
 
 from expynses.contracts.expenses import NewExpenseDto
@@ -9,14 +11,40 @@ from expynses.services.expenses import add_expense
 from expynses.services.expenses_types import get_expense_types
 
 
-def expense_form(page: ft.Page) -> ft.Control:
-    """The 'add expense' form."""
+DATE_FORMAT = "%d-%m-%Y"  # dd-MM-yyyy
+TOAST_WIDTH = 300
+
+
+def show_toast(page: ft.Page, message: str) -> None:
+    """A floating notification in the bottom-right corner."""
+    # A floating SnackBar is centred by default; a left margin pushes it right.
+    left = max((page.width or 0) - TOAST_WIDTH - 24, 0)
+    page.show_dialog(
+        ft.SnackBar(
+            ft.Text(message),
+            behavior=ft.SnackBarBehavior.FLOATING,
+            margin=ft.Margin.only(left=left, right=24, bottom=24),
+            duration=3000,
+        )
+    )
+
+
+def expense_form(
+    page: ft.Page, on_saved: Callable[[], None] | None = None
+) -> ft.Control:
+    """The 'add expense' form. Calls on_saved after an expense is stored."""
 
     # --- The input controls ---
-    date_text = ft.Text(datetime.date.today().isoformat())
+    date_field = ft.TextField(
+        label="Date",
+        value=datetime.date.today().strftime(DATE_FORMAT),
+        read_only=True,
+        suffix_icon=ft.Icons.CALENDAR_MONTH,
+        on_click=lambda: pick_date(),
+    )
     price = ft.TextField(label="Price", prefix="£", keyboard_type=ft.KeyboardType.NUMBER)
     notes = ft.TextField(label="Notes", multiline=True)
-    is_credit = ft.Checkbox(label="This is money coming in (credit)")
+    is_credit = ft.Checkbox(label="Paid by credit card")
     expense_type = ft.Dropdown(
         label="Type",
         options=[
@@ -29,7 +57,7 @@ def expense_form(page: ft.Page) -> ft.Control:
     def date_picked():
         if date_picker.value is None:
             return
-        date_text.value = date_picker.value.strftime("%Y-%m-%d")
+        date_field.value = date_picker.value.strftime(DATE_FORMAT)
         page.update()
 
     date_picker = ft.DatePicker(value=datetime.date.today(), on_change=date_picked)
@@ -58,7 +86,7 @@ def expense_form(page: ft.Page) -> ft.Control:
 
         add_expense(
             NewExpenseDto(
-                date=datetime.date.fromisoformat(date_text.value),
+                date=datetime.datetime.strptime(date_field.value, DATE_FORMAT).date(),
                 price=price_value,
                 notes=notes.value or "",
                 is_credit=is_credit.value,
@@ -71,15 +99,17 @@ def expense_form(page: ft.Page) -> ft.Control:
         notes.value = ""
         is_credit.value = False
         expense_type.value = None
-        page.show_dialog(ft.SnackBar(ft.Text("Expense saved")))
+        show_toast(page, "Expense saved")
         page.update()
+        if on_saved is not None:
+            on_saved()
 
     # --- Layout: everything stacked top to bottom ---
     return ft.Column(
         width=400,
         controls=[
             ft.Text("Add expense", size=24),
-            ft.Row([ft.Button("Pick date", on_click=pick_date), date_text]),
+            date_field,
             price,
             expense_type,
             notes,

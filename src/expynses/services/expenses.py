@@ -2,7 +2,7 @@ import uuid
 
 import expynses.db.expenses as db_expenses
 
-from expynses.services.dtos import NewExpenseDto
+from expynses.contracts.expenses import NewExpenseDto
 
 def add_expense(
     new_expense: NewExpenseDto

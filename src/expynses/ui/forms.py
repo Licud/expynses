@@ -1,13 +1,16 @@
 import datetime
+import decimal
+import uuid
 
 import flet as ft
 
-# Placeholder list until the form reads expense types from the database.
-EXPENSE_TYPES = ["Food", "Transport", "Bills", "Other"]
+from expynses.contracts.expenses import NewExpenseDto
+from expynses.services.expenses import add_expense
+from expynses.services.expenses_types import get_expense_types
 
 
 def expense_form(page: ft.Page) -> ft.Control:
-    """The 'add expense' form. It doesn't save anything yet."""
+    """The 'add expense' form."""
 
     # --- The input controls ---
     date_text = ft.Text(datetime.date.today().isoformat())
@@ -16,7 +19,10 @@ def expense_form(page: ft.Page) -> ft.Control:
     is_credit = ft.Checkbox(label="This is money coming in (credit)")
     expense_type = ft.Dropdown(
         label="Type",
-        options=[ft.DropdownOption(key=name, text=name) for name in EXPENSE_TYPES],
+        options=[
+            ft.DropdownOption(key=str(et.id), text=et.name)
+            for et in get_expense_types()
+        ],
     )
 
     # --- The date picker pop-up ---
@@ -33,8 +39,40 @@ def expense_form(page: ft.Page) -> ft.Control:
 
     # --- The Save button ---
     def save():
-        summary = f"{date_text.value} | £{price.value} | {expense_type.value} | {notes.value}"
-        page.show_dialog(ft.SnackBar(ft.Text(f"Not saved yet: {summary}")))
+        # Validate the inputs first, collecting messages on the controls.
+        price.error = None
+        expense_type.error_text = None
+
+        try:
+            price_value = decimal.Decimal(price.value or "")
+        except decimal.InvalidOperation:
+            price.error = "Enter a valid price"
+            price_value = None
+
+        if expense_type.value is None:
+            expense_type.error_text = "Pick a type"
+
+        if price_value is None or expense_type.value is None:
+            page.update()
+            return
+
+        add_expense(
+            NewExpenseDto(
+                date=datetime.date.fromisoformat(date_text.value),
+                price=price_value,
+                notes=notes.value or "",
+                is_credit=is_credit.value,
+                expense_type_id=uuid.UUID(expense_type.value),
+            )
+        )
+
+        # Reset the form for the next entry.
+        price.value = ""
+        notes.value = ""
+        is_credit.value = False
+        expense_type.value = None
+        page.show_dialog(ft.SnackBar(ft.Text("Expense saved")))
+        page.update()
 
     # --- Layout: everything stacked top to bottom ---
     return ft.Column(

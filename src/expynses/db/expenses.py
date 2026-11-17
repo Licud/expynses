@@ -1,4 +1,3 @@
-import datetime
 import decimal
 import uuid
 
@@ -6,8 +5,7 @@ from collections.abc import Iterable
 
 from sqlalchemy import select
 
-from expynses.contracts.expenses import ExpenseDto
-from expynses.contracts.expenses import ExpenseFilterDto
+from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto, NewExpenseDto
 from expynses.db.expense_types import list_expense_types
 
 from ._engine import get_session
@@ -15,21 +13,17 @@ from ._models import Expense
 
 
 def add_expense(
-    date: datetime.date,
-    price: decimal.Decimal,
-    notes: str,
-    is_credit: bool,
-    expense_type_id: uuid.UUID,
+    new_expense: NewExpenseDto
 ) -> uuid.UUID:
     
-    price_pence=round(price * 100)
+    price_pence=round(new_expense.price * 100)
 
     expense = Expense(
-        date=date,
+        date=new_expense.date,
         price_pence=price_pence,
-        notes=notes,
-        is_credit=is_credit,
-        expense_type_id=expense_type_id,
+        notes=new_expense.notes,
+        is_credit=new_expense.is_credit,
+        expense_type_id=new_expense.expense_type_id,
     )
 
     with get_session() as session:

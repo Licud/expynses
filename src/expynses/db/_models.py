@@ -24,3 +24,12 @@ class ExpenseType(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str]
+
+
+class Income(Base):
+    __tablename__ = "incomes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    date: Mapped[datetime.date]
+    amount_pence: Mapped[int]
+    source: Mapped[str]

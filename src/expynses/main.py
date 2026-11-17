@@ -1,25 +1,22 @@
+from pathlib import Path
+
 import flet as ft
 
 from expynses.db import init_db
-from expynses.ui.expense_list import expense_list
-from expynses.ui.forms import expense_form
+from expynses.ui.shell import app_shell
+from expynses.ui.theme import apply_theme
+
+ASSETS_DIR = Path(__file__).parent / "assets"
 
 
 def main(page: ft.Page):
     page.title = "expynses"
-
-    expenses, refresh = expense_list(page)
-    form = expense_form(page, on_saved=refresh)
-
-    page.add(
-        ft.Row(
-            [form, expenses],
-            vertical_alignment=ft.CrossAxisAlignment.START,
-            spacing=40,
-        )
-    )
+    page.window.icon = "icon.ico"  # looked up in ASSETS_DIR
+    apply_theme(page)
+    page.padding = 0
+    page.add(app_shell(page))
 
 
 if __name__ == "__main__":
     init_db()
-    ft.run(main)
+    ft.run(main, assets_dir=str(ASSETS_DIR))

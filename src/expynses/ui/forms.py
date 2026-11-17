@@ -9,6 +9,8 @@ import flet as ft
 from expynses.contracts.expenses import NewExpenseDto
 from expynses.services.expenses import add_expense
 from expynses.services.expenses_types import get_expense_types
+from expynses.ui import theme
+from expynses.ui.expense_type_icons import icon_for_type
 
 
 DATE_FORMAT = "%d-%m-%Y"  # dd-MM-yyyy
@@ -21,7 +23,15 @@ def show_toast(page: ft.Page, message: str) -> None:
     left = max((page.width or 0) - TOAST_WIDTH - 24, 0)
     page.show_dialog(
         ft.SnackBar(
-            ft.Text(message),
+            ft.Row(
+                [
+                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=theme.GREEN, size=20),
+                    ft.Text(message, color=theme.TEXT),
+                ],
+                spacing=10,
+            ),
+            bgcolor=theme.SURFACE_HIGH,
+            shape=ft.RoundedRectangleBorder(radius=12),
             behavior=ft.SnackBarBehavior.FLOATING,
             margin=ft.Margin.only(left=left, right=24, bottom=24),
             duration=3000,
@@ -30,25 +40,45 @@ def show_toast(page: ft.Page, message: str) -> None:
 
 
 def expense_form(
-    page: ft.Page, on_saved: Callable[[], None] | None = None
+    page: ft.Page,
+    on_saved: Callable[[bool], None] | None = None,
+    default_date: datetime.date | None = None,
 ) -> ft.Control:
-    """The 'add expense' form. Calls on_saved after an expense is stored."""
+    """The 'add expense' fields.
+
+    After an expense is stored, on_saved(add_another) is called, where
+    add_another says whether the user ticked "Add another".
+    """
+    start_date = default_date or datetime.date.today()
 
     # --- The input controls ---
     date_field = ft.TextField(
         label="Date",
-        value=datetime.date.today().strftime(DATE_FORMAT),
+        value=start_date.strftime(DATE_FORMAT),
         read_only=True,
         suffix_icon=ft.Icons.CALENDAR_MONTH,
+        border_radius=10,
         on_click=lambda: pick_date(),
     )
-    price = ft.TextField(label="Price", prefix="£", keyboard_type=ft.KeyboardType.NUMBER)
-    notes = ft.TextField(label="Notes", multiline=True)
-    is_credit = ft.Checkbox(label="Paid by credit card")
+    price = ft.TextField(
+        label="Price",
+        prefix="£",
+        keyboard_type=ft.KeyboardType.NUMBER,
+        border_radius=10,
+    )
+    notes = ft.TextField(label="Notes", multiline=True, min_lines=2, border_radius=10)
+    is_credit = ft.Switch(label="Paid by credit card")
+    add_another = ft.Switch(label="Add another after saving", value=True)
     expense_type = ft.Dropdown(
         label="Type",
+        border_radius=10,
+        expand=True,
         options=[
-            ft.DropdownOption(key=str(et.id), text=et.name)
+            ft.DropdownOption(
+                key=str(et.id),
+                text=et.name,
+                leading_icon=icon_for_type(et.name),
+            )
             for et in get_expense_types()
         ],
     )
@@ -60,13 +90,13 @@ def expense_form(
         date_field.value = date_picker.value.strftime(DATE_FORMAT)
         page.update()
 
-    date_picker = ft.DatePicker(value=datetime.date.today(), on_change=date_picked)
+    date_picker = ft.DatePicker(value=start_date, on_change=date_picked)
 
     def pick_date():
         page.show_dialog(date_picker)
 
     # --- The Save button ---
-    def save():
+    async def save():
         # Validate the inputs first, collecting messages on the controls.
         price.error = None
         expense_type.error_text = None
@@ -94,26 +124,40 @@ def expense_form(
             )
         )
 
-        # Reset the form for the next entry.
-        price.value = ""
-        notes.value = ""
-        is_credit.value = False
-        expense_type.value = None
+        # Keep the date, type and card choice for the next entry in a run;
+        # clear what is different every time.
+        keep_open = bool(add_another.value)
+        if keep_open:
+            price.value = ""
+            notes.value = ""
+
+        # on_saved may close the dialog this form lives in, so it runs before
+        # the toast; otherwise closing would dismiss the toast instead.
+        if on_saved is not None:
+            on_saved(keep_open)
         show_toast(page, "Expense saved")
         page.update()
-        if on_saved is not None:
-            on_saved()
+        if keep_open:
+            await price.focus()
 
-    # --- Layout: everything stacked top to bottom ---
+    # --- Layout: the fields stacked top to bottom ---
     return ft.Column(
-        width=400,
+        width=360,
+        tight=True,
+        spacing=16,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         controls=[
-            ft.Text("Add expense", size=24),
             date_field,
             price,
-            expense_type,
+            ft.Row([expense_type]),
             notes,
             is_credit,
-            ft.Button("Save", on_click=save),
+            add_another,
+            ft.FilledButton(
+                "Save expense",
+                icon=ft.Icons.SAVE,
+                on_click=save,
+                height=44,
+            ),
         ],
     )

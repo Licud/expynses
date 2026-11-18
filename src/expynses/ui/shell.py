@@ -18,58 +18,57 @@ class NavItem:
 
 # Add a line here to add a page to the left-hand navigation.
 NAV_ITEMS = [
-    NavItem("Monthly", ft.Icons.CALENDAR_MONTH, monthly_view),
-    NavItem("Income", ft.Icons.SAVINGS, income_view),
+    NavItem("Monthly", ft.Icons.CALENDAR_MONTH_OUTLINED, monthly_view),
+    NavItem("Income", ft.Icons.SAVINGS_OUTLINED, income_view),
 ]
 
 
 def _nav_button(item: NavItem, selected: bool, on_click: Callable[[], None]) -> ft.Control:
-    """One navigation entry: a raised, outlined pill when selected."""
-    colour = theme.ACCENT_TEXT if selected else theme.MUTED
-    return ft.Container(
-        on_click=on_click,
-        ink=True,
-        border_radius=14,
-        padding=ft.Padding.symmetric(horizontal=16, vertical=14),
-        bgcolor=theme.tinted(theme.ACCENT, 0.16) if selected else None,
-        border=ft.Border.all(1, theme.tinted(theme.ACCENT, 0.55) if selected else theme.SURFACE),
-        shadow=(
-            ft.BoxShadow(
-                blur_radius=18,
-                spread_radius=0,
-                color=theme.tinted(theme.ACCENT, 0.28),
-                offset=ft.Offset(0, 5),
-            )
-            if selected
-            else None
-        ),
+    """One navigation entry: a quiet row, softly filled when selected."""
+    colour = theme.TEXT if selected else theme.MUTED
+    row = ft.Container(
+        on_click=lambda _: on_click(),
+        height=38,
+        border_radius=theme.RADIUS_SM,
+        padding=ft.Padding.only(left=10, right=12),
+        bgcolor=theme.SURFACE_HIGH if selected else None,
         content=ft.Row(
             [
-                ft.Icon(item.icon, color=colour, size=26),
+                # A small accent bar marks the current page.
+                ft.Container(
+                    width=3,
+                    height=16,
+                    border_radius=2,
+                    bgcolor=theme.ACCENT if selected else None,
+                ),
+                ft.Icon(item.icon, color=theme.ACCENT_TEXT if selected else colour, size=19),
                 ft.Text(
                     item.label,
-                    size=18,
-                    weight=ft.FontWeight.W_700 if selected else ft.FontWeight.W_500,
+                    size=14,
+                    weight=ft.FontWeight.W_600 if selected else ft.FontWeight.W_500,
                     color=colour,
-                    style=ft.TextStyle(letter_spacing=0.4),
                 ),
             ],
-            spacing=14,
+            spacing=10,
         ),
     )
+    return row if selected else theme.hoverable(row)
 
 
 def app_shell(page: ft.Page) -> ft.Control:
     """Left-hand navigation plus a content area that swaps with the selection."""
 
-    content = ft.Container(expand=True, padding=20)
+    content = ft.Container(
+        expand=True,
+        padding=ft.Padding.only(left=32, right=32, top=28, bottom=24),
+    )
 
-    nav_items = ft.Column(spacing=8)
+    nav_items = ft.Column(spacing=2)
 
     def show(index: int):
         content.content = NAV_ITEMS[index].build(page)
         nav_items.controls = [
-            _nav_button(item, selected=i == index, on_click=lambda _, i=i: select(i))
+            _nav_button(item, selected=i == index, on_click=lambda i=i: select(i))
             for i, item in enumerate(NAV_ITEMS)
         ]
 
@@ -78,31 +77,41 @@ def app_shell(page: ft.Page) -> ft.Control:
         page.update()
 
     logo = ft.Container(
-        padding=ft.Padding.only(left=8, top=24, bottom=28),
+        padding=ft.Padding.only(left=6, top=26, bottom=30),
         content=ft.Row(
             [
                 ft.Container(
                     content=ft.Icon(
-                        ft.Icons.ACCOUNT_BALANCE_WALLET,
+                        ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED,
                         color=theme.ON_ACCENT,
-                        size=22,
+                        size=16,
                     ),
-                    padding=10,
-                    border_radius=12,
-                    bgcolor=theme.ACCENT,
+                    width=28,
+                    height=28,
+                    alignment=ft.Alignment.CENTER,
+                    border_radius=8,
+                    gradient=ft.LinearGradient(
+                        begin=ft.Alignment.TOP_LEFT,
+                        end=ft.Alignment.BOTTOM_RIGHT,
+                        colors=["#e39a7d", theme.ACCENT],
+                    ),
                 ),
-                theme.heading("expynses", size=24),
+                theme.heading("expynses", size=19),
             ],
-            spacing=12,
+            spacing=10,
         ),
     )
 
-    # A solid panel with a hairline edge so the navigation reads as its own surface.
+    menu_label = ft.Container(
+        content=theme.label("Menu"),
+        padding=ft.Padding.only(left=12, bottom=8),
+    )
+
     nav_panel = ft.Container(
-        width=240,
-        padding=ft.Padding.symmetric(horizontal=16),
-        content=ft.Column([logo, nav_items]),
-        bgcolor=theme.SURFACE,
+        width=216,
+        padding=ft.Padding.symmetric(horizontal=12),
+        content=ft.Column([logo, menu_label, nav_items], spacing=0),
+        bgcolor=theme.BG,
         border=ft.Border(right=ft.BorderSide(1, theme.BORDER)),
     )
 
@@ -111,5 +120,6 @@ def app_shell(page: ft.Page) -> ft.Control:
     return ft.Row(
         [nav_panel, content],
         expand=True,
-        vertical_alignment=ft.CrossAxisAlignment.START,
+        spacing=0,
+        vertical_alignment=ft.CrossAxisAlignment.STRETCH,
     )

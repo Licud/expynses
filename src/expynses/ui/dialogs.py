@@ -31,7 +31,7 @@ def open_add_dialog(
         shape=ft.RoundedRectangleBorder(radius=16),
         title=ft.Row(
             [
-                theme.heading(title, size=24),
+                theme.heading(title, size=21),
                 ft.IconButton(
                     ft.Icons.CLOSE,
                     icon_color=theme.MUTED,

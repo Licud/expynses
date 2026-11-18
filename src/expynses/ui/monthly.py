@@ -1,61 +1,175 @@
 import calendar
 import datetime
+import decimal
+
+from collections.abc import Sequence
 
 import flet as ft
 
-from expynses.contracts.expenses import ExpenseFilterDto
-from expynses.contracts.incomes import IncomeFilterDto
-from expynses.ui.dialogs import open_add_dialog
-from expynses.ui.expense_list import expense_list
-from expynses.ui.income_list import income_list
+from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto
+from expynses.contracts.incomes import IncomeDto, IncomeFilterDto
+from expynses.services.expenses import search_expenses
+from expynses.services.incomes import search_incomes
 from expynses.ui import theme
+from expynses.ui.dialogs import open_add_dialog
+from expynses.ui.expense_list import category_card, transactions_card
 from expynses.ui.forms import expense_form, income_form
+from expynses.ui.income_list import income_card
+
+ZERO = decimal.Decimal(0)
+RAIL_WIDTH = 340
+
+
+def _legend(color: str, caption: str, amount: decimal.Decimal) -> ft.Control:
+    return ft.Row(
+        [
+            theme.dot(color),
+            ft.Text(caption, size=12, color=theme.MUTED),
+            ft.Text(theme.money(amount), size=12, weight=ft.FontWeight.W_600, color=theme.TEXT_SOFT),
+        ],
+        spacing=6,
+        tight=True,
+    )
+
+
+def _side_stat(icon: ft.IconData, color: str, caption: str, value: str) -> ft.Control:
+    return ft.Row(
+        [
+            theme.icon_tile(icon, color, size=30),
+            ft.Text(caption, size=13, color=theme.MUTED, expand=True),
+            ft.Text(value, size=15, weight=ft.FontWeight.W_600, color=theme.TEXT),
+        ],
+        spacing=12,
+    )
+
+
+def _hero(
+    expenses: Sequence[ExpenseDto],
+    incomes: Sequence[IncomeDto],
+    days_counted: int,
+) -> ft.Control:
+    """The month at a glance: what's left, a spend bar and the key numbers."""
+    income = sum((i.amount for i in incomes), ZERO)
+    spent = sum((e.price for e in expenses), ZERO)
+    on_credit = sum((e.price for e in expenses if e.is_credit), ZERO)
+    paid = spent - on_credit
+    # Credit card spending isn't paid from this month's income, so only
+    # paid-in-full spending comes off what's left.
+    left = income - paid
+
+    # The bar is measured against income, or against paid spending if that's bigger.
+    scale = max(income, paid)
+    parts = [(float(paid / scale) if scale else 0.0, theme.ACCENT)]
+
+    if income:
+        caption = f"{theme.money(paid)} paid of {theme.money(income)} income · {paid / income:.0%} used"
+    else:
+        caption = f"{theme.money(paid)} paid · no income logged this month"
+
+    legend = [_legend(theme.ACCENT, "Paid in full", paid)]
+    if left > 0:
+        legend.append(_legend(theme.SURFACE_HOVER, "Remaining", left))
+    if on_credit:
+        legend.append(_legend(theme.AMBER, "Credit card", on_credit))
+
+    summary = ft.Column(
+        [
+            theme.label("Left to spend"),
+            theme.heading(theme.money(left), size=46, color=theme.TEXT if left >= 0 else theme.RED),
+            ft.Text(caption, size=13, color=theme.MUTED),
+            ft.Container(height=10),
+            theme.bar(parts, height=8),
+            ft.Row(legend, spacing=20, wrap=True),
+        ],
+        spacing=6,
+        expand=True,
+    )
+
+    daily = spent / days_counted if days_counted else ZERO
+    side = ft.Container(
+        width=RAIL_WIDTH - 40,
+        content=ft.Column(
+            [
+                _side_stat(ft.Icons.ARROW_DOWNWARD, theme.GREEN, "Income", theme.money(income)),
+                _side_stat(ft.Icons.ARROW_UPWARD, theme.ACCENT_TEXT, "Spent", theme.money(spent)),
+                _side_stat(ft.Icons.SHOW_CHART, theme.SLATE, "Daily average", theme.money(daily)),
+            ],
+            spacing=14,
+            alignment=ft.MainAxisAlignment.CENTER,
+        ),
+    )
+
+    return ft.Container(
+        padding=ft.Padding.symmetric(horizontal=28, vertical=24),
+        border_radius=theme.RADIUS,
+        border=ft.Border.all(1, theme.BORDER),
+        gradient=ft.LinearGradient(
+            begin=ft.Alignment.TOP_LEFT,
+            end=ft.Alignment.BOTTOM_RIGHT,
+            colors=[theme.tinted(theme.ACCENT, 0.16), theme.SURFACE, theme.SURFACE],
+            stops=[0.0, 0.55, 1.0],
+        ),
+        content=ft.Row(
+            [
+                summary,
+                ft.Container(width=1, height=120, bgcolor=theme.BORDER),
+                side,
+            ],
+            spacing=32,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+    )
 
 
 def monthly_view(page: ft.Page) -> ft.Control:
-    """The 'Monthly' page: pick a month, see its expenses, add a new one."""
+    """The 'Monthly' page: pick a month, see its money in and out, add entries."""
     today = datetime.date.today()
     this_month = today.replace(day=1)
 
     # The first day of the month being shown.
     month = {"start": this_month}
 
-    month_label = ft.Text(size=18, font_family=theme.HEADING_FONT)
+    month_title = theme.heading("", size=30)
 
-    def month_filter() -> ExpenseFilterDto:
+    def date_range() -> tuple[datetime.date, datetime.date]:
         start = month["start"]
         last_day = calendar.monthrange(start.year, start.month)[1]
-        return ExpenseFilterDto(from_date=start, to_date=start.replace(day=last_day))
+        return start, start.replace(day=last_day)
 
-    def income_month_filter() -> IncomeFilterDto:
-        f = month_filter()
-        return IncomeFilterDto(from_date=f.from_date, to_date=f.to_date)
+    def days_counted() -> int:
+        """Days so far this month, or the whole month for other months."""
+        start, end = date_range()
+        return today.day if start == this_month else end.day
 
-    expenses, refresh_expenses = expense_list(page, month_filter)
-    incomes, refresh_incomes = income_list(
-        page,
-        income_month_filter,
-        empty_text="No income this month",
-        total_caption="Income this month",
-        show_date=False,
-    )
+    hero_box = ft.Container()
+    transactions_box = ft.Container(expand=True)
+    categories_box = ft.Container()
+    incomes_box = ft.Container()
+
+    def load():
+        start, end = date_range()
+        expenses = list(search_expenses(ExpenseFilterDto(from_date=start, to_date=end)))
+        incomes = list(search_incomes(IncomeFilterDto(from_date=start, to_date=end)))
+        month_title.value = start.strftime("%B %Y")
+        hero_box.content = _hero(expenses, incomes, days_counted())
+        transactions_box.content = transactions_card(expenses)
+        categories_box.content = category_card(expenses)
+        incomes_box.content = income_card(
+            incomes, title="Income", empty_text="No income this month", show_date=False
+        )
 
     def refresh():
-        refresh_expenses()
-        refresh_incomes()
-
-    def show_month(start: datetime.date):
-        month["start"] = start
-        month_label.value = start.strftime("%B %Y")
+        load()
+        page.update()
 
     def shift_month(delta: int):
         start = month["start"]
         index = start.year * 12 + (start.month - 1) + delta
-        show_month(datetime.date(index // 12, index % 12 + 1, 1))
+        month["start"] = datetime.date(index // 12, index % 12 + 1, 1)
         refresh()
 
     def go_to_this_month():
-        show_month(this_month)
+        month["start"] = this_month
         refresh()
 
     def add_dialog(title: str, build_form):
@@ -63,60 +177,65 @@ def monthly_view(page: ft.Page) -> ft.Control:
         default = today if month["start"] == this_month else month["start"]
         open_add_dialog(page, title, build_form, on_saved=refresh, default_date=default)
 
-    def open_add_expense():
-        add_dialog("Add expense", expense_form)
+    load()
 
-    def open_add_income():
-        add_dialog("Add income", income_form)
-
-    show_month(this_month)
-
-    month_picker = ft.Container(
-        height=44,
+    # A compact segmented control: previous | Today | next.
+    divider = ft.Container(width=1, height=18, bgcolor=theme.BORDER)
+    month_switcher = ft.Container(
+        height=theme.CONTROL_HEIGHT,
         bgcolor=theme.SURFACE,
-        border=ft.Border.all(1.5, theme.BORDER),
-        border_radius=24,
-        padding=ft.Padding.symmetric(horizontal=4),
+        border=ft.Border.all(1, theme.BORDER),
+        border_radius=theme.RADIUS_SM,
+        padding=2,
         content=ft.Row(
             [
-                ft.IconButton(
-                    ft.Icons.CHEVRON_LEFT,
-                    icon_color=theme.MUTED,
-                    tooltip="Previous month",
-                    on_click=lambda: shift_month(-1),
+                theme.icon_button(ft.Icons.CHEVRON_LEFT, "Previous month", lambda: shift_month(-1), size=30),
+                divider,
+                theme.hoverable(
+                    ft.Container(
+                        ft.Text("Today", size=13, weight=ft.FontWeight.W_600, color=theme.TEXT_SOFT),
+                        padding=ft.Padding.symmetric(horizontal=12),
+                        height=30,
+                        border_radius=8,
+                        alignment=ft.Alignment.CENTER,
+                        on_click=lambda _: go_to_this_month(),
+                    ),
+                    theme.SURFACE_HOVER,
                 ),
-                ft.Container(content=month_label, width=170, alignment=ft.Alignment.CENTER),
-                ft.IconButton(
-                    ft.Icons.CHEVRON_RIGHT,
-                    icon_color=theme.MUTED,
-                    tooltip="Next month",
-                    on_click=lambda: shift_month(1),
-                ),
+                divider,
+                theme.icon_button(ft.Icons.CHEVRON_RIGHT, "Next month", lambda: shift_month(1), size=30),
             ],
-            spacing=0,
+            spacing=2,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
     )
 
     header = ft.Row(
         [
-            theme.heading("Monthly", size=34),
+            ft.Column([theme.label("Monthly overview"), month_title], spacing=2),
             ft.Container(expand=True),
-            month_picker,
-            theme.action_button("This month", ft.Icons.TODAY, go_to_this_month, filled=False, quiet=True),
-            theme.action_button("Add income", ft.Icons.ADD, open_add_income),
-            theme.action_button("Add expense", ft.Icons.ADD, open_add_expense),
+            month_switcher,
+            ft.Container(width=4),
+            theme.action_button("Income", ft.Icons.ADD, lambda: add_dialog("Add income", income_form), primary=False),
+            theme.action_button("Expense", ft.Icons.ADD, lambda: add_dialog("Add expense", expense_form)),
         ],
-        spacing=12,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=8,
+        vertical_alignment=ft.CrossAxisAlignment.END,
+    )
+
+    main_column = ft.Column([hero_box, transactions_box], spacing=20, expand=True)
+    rail = ft.Column(
+        [categories_box, incomes_box],
+        spacing=20,
+        width=RAIL_WIDTH,
+        scroll=ft.ScrollMode.AUTO,
     )
 
     body = ft.Row(
-        [
-            ft.Container(incomes, width=380),
-            ft.Container(expenses, expand=True),
-        ],
+        [main_column, rail],
         spacing=20,
         expand=True,
         vertical_alignment=ft.CrossAxisAlignment.START,
     )
-    return ft.Column([header, body], spacing=20, expand=True)
+    return ft.Column([header, body], spacing=24, expand=True)

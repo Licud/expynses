@@ -12,6 +12,11 @@ ASSETS_DIR = Path(__file__).parent / "assets"
 def main(page: ft.Page):
     page.title = "expynses"
     page.window.icon = "icon.ico"  # looked up in ASSETS_DIR
+    page.window.maximized = True
+    page.window.width = 1360
+    page.window.height = 820
+    page.window.min_width = 1100
+    page.window.min_height = 640
     apply_theme(page)
     page.padding = 0
     page.add(app_shell(page))

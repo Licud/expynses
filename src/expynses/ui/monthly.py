@@ -4,9 +4,12 @@ import datetime
 import flet as ft
 
 from expynses.contracts.expenses import ExpenseFilterDto
+from expynses.contracts.incomes import IncomeFilterDto
+from expynses.ui.dialogs import open_add_dialog
 from expynses.ui.expense_list import expense_list
+from expynses.ui.income_list import income_list
 from expynses.ui import theme
-from expynses.ui.forms import expense_form
+from expynses.ui.forms import expense_form, income_form
 
 
 def monthly_view(page: ft.Page) -> ft.Control:
@@ -24,7 +27,22 @@ def monthly_view(page: ft.Page) -> ft.Control:
         last_day = calendar.monthrange(start.year, start.month)[1]
         return ExpenseFilterDto(from_date=start, to_date=start.replace(day=last_day))
 
-    expenses, refresh = expense_list(page, month_filter)
+    def income_month_filter() -> IncomeFilterDto:
+        f = month_filter()
+        return IncomeFilterDto(from_date=f.from_date, to_date=f.to_date)
+
+    expenses, refresh_expenses = expense_list(page, month_filter)
+    incomes, refresh_incomes = income_list(
+        page,
+        income_month_filter,
+        empty_text="No income this month",
+        total_caption="Income this month",
+        show_date=False,
+    )
+
+    def refresh():
+        refresh_expenses()
+        refresh_incomes()
 
     def show_month(start: datetime.date):
         month["start"] = start
@@ -40,42 +58,23 @@ def monthly_view(page: ft.Page) -> ft.Control:
         show_month(this_month)
         refresh()
 
-    def open_add_expense():
-        def close():
-            dialog.open = False
-            page.update()
-
-        def saved(add_another: bool):
-            if not add_another:
-                close()
-            refresh()
-
+    def add_dialog(title: str, build_form):
         # Add to the month on screen: today if it's the current month.
         default = today if month["start"] == this_month else month["start"]
-        dialog = ft.AlertDialog(
-            bgcolor=theme.SURFACE,
-            shape=ft.RoundedRectangleBorder(radius=16),
-            title=ft.Row(
-                [
-                    theme.heading("Add expense", size=24),
-                    ft.IconButton(
-                        ft.Icons.CLOSE,
-                        icon_color=theme.MUTED,
-                        tooltip="Close",
-                        on_click=close,
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            ),
-            content=expense_form(page, on_saved=saved, default_date=default),
-        )
-        page.show_dialog(dialog)
+        open_add_dialog(page, title, build_form, on_saved=refresh, default_date=default)
+
+    def open_add_expense():
+        add_dialog("Add expense", expense_form)
+
+    def open_add_income():
+        add_dialog("Add income", income_form)
 
     show_month(this_month)
 
     month_picker = ft.Container(
+        height=44,
         bgcolor=theme.SURFACE,
-        border=ft.Border.all(1, theme.BORDER),
+        border=ft.Border.all(1.5, theme.BORDER),
         border_radius=24,
         padding=ft.Padding.symmetric(horizontal=4),
         content=ft.Row(
@@ -103,16 +102,21 @@ def monthly_view(page: ft.Page) -> ft.Control:
             theme.heading("Monthly", size=34),
             ft.Container(expand=True),
             month_picker,
-            ft.TextButton("This month", on_click=go_to_this_month, style=ft.ButtonStyle(color=theme.ACCENT_TEXT)),
-            ft.FilledButton(
-                "Add expense",
-                icon=ft.Icons.ADD,
-                on_click=open_add_expense,
-                height=44,
-            ),
+            theme.action_button("This month", ft.Icons.TODAY, go_to_this_month, filled=False, quiet=True),
+            theme.action_button("Add income", ft.Icons.ADD, open_add_income),
+            theme.action_button("Add expense", ft.Icons.ADD, open_add_expense),
         ],
         spacing=12,
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
-    return ft.Column([header, expenses], spacing=20, expand=True)
+    body = ft.Row(
+        [
+            ft.Container(incomes, width=380),
+            ft.Container(expenses, expand=True),
+        ],
+        spacing=20,
+        expand=True,
+        vertical_alignment=ft.CrossAxisAlignment.START,
+    )
+    return ft.Column([header, body], spacing=20, expand=True)

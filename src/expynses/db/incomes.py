@@ -15,11 +15,11 @@ def add_income(
     new_income: NewIncomeDto
 ) -> uuid.UUID:
     
-    price_pence=round(new_income.amount * 100)
+    amount_pence=round(new_income.amount * 100)
 
     income = Income(
         date=new_income.date,
-        price_pence=price_pence,
+        amount_pence=amount_pence,
         source=new_income.source,
     )
 

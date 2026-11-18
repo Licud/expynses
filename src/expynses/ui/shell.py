@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import flet as ft
 
 from expynses.ui import theme
+from expynses.ui.income_page import income_view
 from expynses.ui.monthly import monthly_view
 
 
@@ -18,6 +19,7 @@ class NavItem:
 # Add a line here to add a page to the left-hand navigation.
 NAV_ITEMS = [
     NavItem("Monthly", ft.Icons.CALENDAR_MONTH, monthly_view),
+    NavItem("Income", ft.Icons.SAVINGS, income_view),
 ]
 
 
@@ -67,7 +69,7 @@ def app_shell(page: ft.Page) -> ft.Control:
     def show(index: int):
         content.content = NAV_ITEMS[index].build(page)
         nav_items.controls = [
-            _nav_button(item, selected=i == index, on_click=lambda i=i: select(i))
+            _nav_button(item, selected=i == index, on_click=lambda _, i=i: select(i))
             for i, item in enumerate(NAV_ITEMS)
         ]
 

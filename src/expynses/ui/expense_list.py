@@ -49,7 +49,7 @@ def _row(expense: ExpenseDto) -> ft.DataRow:
             ft.DataCell(_type_cell(expense.expense_type.name)),
             ft.DataCell(
                 ft.Text(
-                    f"£{expense.price:.2f}",
+                    f"£{expense.price:,.2f}",
                     color=theme.ACCENT_TEXT,
                     weight=ft.FontWeight.W_600,
                 )
@@ -94,9 +94,9 @@ def _stats(expenses: Sequence[ExpenseDto]) -> list[ft.Control]:
     on_credit = sum((e.price for e in expenses if e.is_credit), zero)
     paid_in_full = total - on_credit
     return [
-        _stat_tile(ft.Icons.PAYMENTS, "Total spent", f"£{total:.2f}", theme.ACCENT_TEXT),
-        _stat_tile(ft.Icons.CHECK_CIRCLE, "Paid in full", f"£{paid_in_full:.2f}", theme.GREEN),
-        _stat_tile(ft.Icons.CREDIT_CARD, "On credit card", f"£{on_credit:.2f}", theme.AMBER),
+        _stat_tile(ft.Icons.PAYMENTS, "Total spent", f"£{total:,.2f}", theme.ACCENT_TEXT),
+        _stat_tile(ft.Icons.CHECK_CIRCLE, "Paid in full", f"£{paid_in_full:,.2f}", theme.GREEN),
+        _stat_tile(ft.Icons.CREDIT_CARD, "On credit card", f"£{on_credit:,.2f}", theme.AMBER),
         _stat_tile(ft.Icons.RECEIPT, "Entries", str(len(expenses)), theme.SLATE),
     ]
 

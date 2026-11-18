@@ -51,6 +51,33 @@ def apply_theme(page: ft.Page) -> None:
     page.bgcolor = BG
 
 
+def action_button(
+    text: str, icon: ft.IconData, on_click, filled: bool = True, quiet: bool = False
+) -> ft.Control:
+    """A page-header button. Filled and outlined versions are the same size,
+    with the icon and label set explicitly so they line up."""
+    # filled: main action; outlined: secondary; quiet: neutral grey outline.
+    fg = ON_ACCENT if filled else (MUTED if quiet else ACCENT_TEXT)
+    edge = BORDER if quiet else ACCENT
+    style = ft.ButtonStyle(
+        shape=ft.RoundedRectangleBorder(radius=22),
+        padding=ft.Padding.symmetric(horizontal=20),
+        bgcolor=ACCENT if filled else None,
+        side=None if filled else ft.BorderSide(1.5, edge),
+    )
+    content = ft.Row(
+        [
+            ft.Icon(icon, size=18, color=fg),
+            ft.Text(text, size=14, weight=ft.FontWeight.W_600, color=fg),
+        ],
+        spacing=8,
+        tight=True,
+        alignment=ft.MainAxisAlignment.CENTER,
+    )
+    cls = ft.FilledButton if filled else ft.OutlinedButton
+    return cls(content=content, on_click=on_click, height=44, style=style)
+
+
 def heading(text: str, size: int = 28) -> ft.Text:
     """A serif heading."""
     return ft.Text(text, size=size, font_family=HEADING_FONT, color=TEXT)

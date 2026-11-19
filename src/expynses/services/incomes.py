@@ -22,3 +22,7 @@ def total_income(
     filter: income_contracts.IncomeFilterDto
 ) -> decimal.Decimal:
     return db_incomes.total_income(filter=filter)
+
+
+def delete_income(id: uuid.UUID):
+    return db_incomes.delete_income(id=id)

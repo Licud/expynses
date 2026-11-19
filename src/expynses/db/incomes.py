@@ -4,7 +4,7 @@ from typing import Iterable
 from ._engine import get_session
 from ._models import Income
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, delete
 
 from expynses.contracts.incomes import IncomeDto, IncomeFilterDto, NewIncomeDto
 import decimal
@@ -69,3 +69,10 @@ def total_income(filter: IncomeFilterDto) -> decimal.Decimal:
         total = session.scalars(query).one()
 
     return decimal.Decimal(total) / 100
+
+
+def delete_income(id: uuid.UUID):
+
+    with get_session() as session:
+        session.execute(delete(Income).where(Income.id == id))
+        session.commit()

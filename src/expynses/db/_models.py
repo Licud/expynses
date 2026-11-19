@@ -33,3 +33,11 @@ class Income(Base):
     date: Mapped[datetime.date]
     amount_pence: Mapped[int]
     source: Mapped[str]
+
+
+class CreditPayment(Base):
+    __tablename__ = "credit_payments"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    date: Mapped[datetime.date]
+    amount_pence: Mapped[int]

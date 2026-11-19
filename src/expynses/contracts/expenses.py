@@ -31,3 +31,4 @@ class ExpenseFilterDto:
     id: uuid.UUID | None = None
     from_date: datetime.date | None = None
     to_date: datetime.date | None = None
+    is_credit: bool | None = None

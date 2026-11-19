@@ -3,7 +3,7 @@ import uuid
 
 from collections.abc import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto, NewExpenseDto
 from expynses.db.expense_types import list_expense_types
@@ -43,6 +43,8 @@ def list_expenses(filter: ExpenseFilterDto) -> Iterable[ExpenseDto]:
             query = query.where(Expense.date >= filter.from_date)
         if filter.to_date is not None:
             query = query.where(Expense.date <= filter.to_date)
+        if filter.is_credit is not None:
+            query = query.where(Expense.is_credit == filter.is_credit)
 
         query = query.order_by(Expense.date.desc())
         expenses = session.scalars(query).all()
@@ -60,3 +62,20 @@ def list_expenses(filter: ExpenseFilterDto) -> Iterable[ExpenseDto]:
         )
         for expense in expenses
     ]
+
+
+def total_expenses(filter: ExpenseFilterDto) -> decimal.Decimal:
+
+    with get_session() as session:
+        query = select(func.coalesce(func.sum(Expense.price_pence), 0))
+
+        if filter.from_date is not None:
+            query = query.where(Expense.date >= filter.from_date)
+        if filter.to_date is not None:
+            query = query.where(Expense.date <= filter.to_date)
+        if filter.is_credit is not None:
+            query = query.where(Expense.is_credit == filter.is_credit)
+
+        total = session.scalars(query).one()
+
+    return decimal.Decimal(total) / 100

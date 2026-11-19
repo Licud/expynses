@@ -54,7 +54,7 @@ def _transaction_row(expense: ExpenseDto) -> ft.Control:
                     ft.Container(_payment_tag(expense.is_credit), width=110),
                     ft.Container(
                         ft.Text(
-                            "−" + theme.money(expense.price),
+                            theme.money(expense.price),
                             size=14,
                             weight=ft.FontWeight.W_600,
                             color=theme.TEXT,

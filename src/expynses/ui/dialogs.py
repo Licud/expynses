@@ -44,3 +44,27 @@ def open_add_dialog(
         content=build_form(page, on_saved=saved, default_date=default_date),
     )
     page.show_dialog(dialog)
+
+
+def confirm_delete(page: ft.Page, message: str, on_confirm: Callable[[], None]) -> None:
+    """Ask before deleting; on_confirm runs only if the user agrees."""
+
+    def close():
+        dialog.open = False
+        page.update()
+
+    def confirmed():
+        close()
+        on_confirm()
+
+    dialog = ft.AlertDialog(
+        bgcolor=theme.SURFACE,
+        shape=ft.RoundedRectangleBorder(radius=16),
+        title=theme.heading("Delete?", size=21),
+        content=ft.Text(message, color=theme.TEXT_SOFT),
+        actions=[
+            ft.TextButton("Cancel", on_click=close),
+            ft.TextButton("Delete", on_click=confirmed, style=ft.ButtonStyle(color=theme.RED)),
+        ],
+    )
+    page.show_dialog(dialog)

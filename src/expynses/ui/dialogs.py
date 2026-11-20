@@ -46,8 +46,19 @@ def open_add_dialog(
     page.show_dialog(dialog)
 
 
-def confirm_delete(page: ft.Page, message: str, on_confirm: Callable[[], None]) -> None:
-    """Ask before deleting; on_confirm runs only if the user agrees."""
+def confirm_delete(
+    page: ft.Page,
+    message: str,
+    on_confirm: Callable[[], None],
+    title: str = "Delete?",
+    warning: str | None = None,
+    confirm_text: str = "Delete",
+) -> None:
+    """Ask before deleting; on_confirm runs only if the user agrees.
+
+    A warning, when given, shows in a red box under the message for deletes
+    that reach further than the item itself.
+    """
 
     def close():
         dialog.open = False
@@ -57,14 +68,33 @@ def confirm_delete(page: ft.Page, message: str, on_confirm: Callable[[], None]) 
         close()
         on_confirm()
 
+    body: list[ft.Control] = [ft.Text(message, color=theme.TEXT_SOFT)]
+    if warning:
+        body.append(
+            ft.Container(
+                padding=ft.Padding.symmetric(horizontal=14, vertical=12),
+                border_radius=theme.RADIUS_SM,
+                bgcolor=theme.tinted(theme.RED, 0.10),
+                border=ft.Border.all(1, theme.tinted(theme.RED, 0.35)),
+                content=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=theme.RED, size=20),
+                        ft.Text(warning, size=13, color=theme.TEXT, expand=True),
+                    ],
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+            )
+        )
+
     dialog = ft.AlertDialog(
         bgcolor=theme.SURFACE,
         shape=ft.RoundedRectangleBorder(radius=16),
-        title=theme.heading("Delete?", size=21),
-        content=ft.Text(message, color=theme.TEXT_SOFT),
+        title=theme.heading(title, size=21),
+        content=ft.Column(body, spacing=14, tight=True, width=380),
         actions=[
             ft.TextButton("Cancel", on_click=close),
-            ft.TextButton("Delete", on_click=confirmed, style=ft.ButtonStyle(color=theme.RED)),
+            ft.TextButton(confirm_text, on_click=confirmed, style=ft.ButtonStyle(color=theme.RED)),
         ],
     )
     page.show_dialog(dialog)

@@ -17,7 +17,7 @@ def add_debit_payment(
 
 def update_debit_template(
     template_id: uuid.UUID,
-    update: db_debit_templates.UpdateDebitTemplateDto
+    update: debit_contracts.UpdateDebitTemplateDto
 ) -> uuid.UUID:
     return db_debit_templates.update_debit_template(id=template_id, updated_debit_template=update)
 

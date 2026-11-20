@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import flet as ft
 
 from expynses.ui import theme
+from expynses.ui.debit_page import debits_view
 from expynses.ui.income_page import income_view
 from expynses.ui.monthly import monthly_view
 
@@ -20,6 +21,7 @@ class NavItem:
 NAV_ITEMS = [
     NavItem("Monthly", ft.Icons.CALENDAR_MONTH_OUTLINED, monthly_view),
     NavItem("Income", ft.Icons.SAVINGS_OUTLINED, income_view),
+    NavItem("Debits", ft.Icons.EVENT_REPEAT_OUTLINED, debits_view),
 ]
 
 

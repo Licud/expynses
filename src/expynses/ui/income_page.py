@@ -104,6 +104,7 @@ def income_view(page: ft.Page) -> ft.Control:
                 "Income",
                 ft.Icons.ADD,
                 lambda: open_add_dialog(page, "Add income", income_form, on_saved=refresh),
+                accent=theme.GREEN,
             ),
         ],
         vertical_alignment=ft.CrossAxisAlignment.END,

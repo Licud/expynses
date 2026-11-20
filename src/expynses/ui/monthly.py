@@ -7,14 +7,17 @@ from collections.abc import Sequence
 import flet as ft
 
 from expynses.contracts.credit_payments import CreditPaymentDto, CreditPaymentFilterDto
+from expynses.contracts.debits import DebitPaymentFilterDto
 from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto
 from expynses.contracts.incomes import IncomeDto, IncomeFilterDto
 from expynses.services.credit_payments import delete_credit_payment, search_credit_payments
 from expynses.services.expenses import search_expenses
 from expynses.services.incomes import search_incomes
-from expynses.services.totals import balance, credit_balance
+from expynses.services.totals import balance, credit_balance, total_debit_payments
 from expynses.ui import theme
 from expynses.ui.credit_payment_list import credit_payment_card
+from expynses.ui.debit_list import ticked_debits_card
+from expynses.ui.debit_month_dialog import MonthDebit, month_debits, open_month_debits, pending, toggle_debit
 from expynses.ui.dialogs import confirm_delete, open_add_dialog
 from expynses.ui.expense_list import category_card, transactions_card
 from expynses.ui.forms import credit_payment_form, expense_form, income_form
@@ -53,7 +56,8 @@ def _hero(
     payments: Sequence[CreditPaymentDto],
     card_balance: decimal.Decimal,
     carried_over: decimal.Decimal,
-    days_counted: int,
+    debits: decimal.Decimal,
+    daily: decimal.Decimal,
 ) -> ft.Control:
     """The month at a glance: what's left, a spend bar and the key numbers."""
     income = sum((i.amount for i in incomes), ZERO)
@@ -62,22 +66,32 @@ def _hero(
     paid = spent - on_credit
     card_paid = sum((p.amount for p in payments), ZERO)
     # Credit card spending isn't paid from this month's income; what comes off
-    # what's left is paid-in-full spending plus the card payments made this month.
+    # what's left is paid-in-full spending, the card payments made this month and
+    # the debits ticked off this month (savings included, never shown apart).
     # Whatever was left over from earlier months rolls in on top of this month's income.
     available = income + carried_over
-    left = available - paid - card_paid
-    # The bar is measured against what's available, or against paid spending if that is bigger.
-    scale = max(available, paid)
-    parts = [(float(paid / scale) if scale else 0.0, theme.ACCENT)]
+    used = paid + debits
+    left = available - used - card_paid
+    # The bar is measured against what's available, or against what's used if that is bigger.
+    scale = max(available, used)
+    parts = [
+        (float(paid / scale) if scale else 0.0, theme.ACCENT),
+        (float(debits / scale) if scale else 0.0, theme.MAUVE),
+    ]
 
+    out = f"{theme.money(paid)} paid"
+    if debits:
+        out += f" + {theme.money(debits)} debits"
     if available > 0:
-        caption = f"{theme.money(paid)} paid of {theme.money(available)} available · {paid / available:.0%} used"
+        caption = f"{out} of {theme.money(available)} available · {used / available:.0%} used"
     else:
-        caption = f"{theme.money(paid)} paid · nothing available this month"
+        caption = f"{out} · nothing available this month"
     if carried_over:
         caption += f" · {theme.money(carried_over)} carried over"
 
     cash_legend = [_legend(theme.ACCENT, "Paid in full", paid)]
+    if debits:
+        cash_legend.append(_legend(theme.MAUVE, "Debits", debits))
     if left > 0:
         cash_legend.append(_legend(theme.SURFACE_HOVER, "Remaining", left))
 
@@ -110,13 +124,13 @@ def _hero(
         expand=True,
     )
 
-    daily = spent / days_counted if days_counted else ZERO
     side = ft.Container(
         width=RAIL_WIDTH - 40,
         content=ft.Column(
             [
                 _side_stat(ft.Icons.ARROW_DOWNWARD, theme.GREEN, "Income", theme.money(income)),
                 _side_stat(ft.Icons.ARROW_UPWARD, theme.ACCENT_TEXT, "Spent", theme.money(spent)),
+                _side_stat(ft.Icons.EVENT_REPEAT, theme.MAUVE, "Debits", theme.money(debits)),
                 _side_stat(ft.Icons.CREDIT_CARD, theme.AMBER, "Credit card owed", theme.money(card_balance)),
                 _side_stat(ft.Icons.SHOW_CHART, theme.SLATE, "Daily average", theme.money(daily)),
             ],
@@ -162,16 +176,29 @@ def monthly_view(page: ft.Page) -> ft.Control:
         last_day = calendar.monthrange(start.year, start.month)[1]
         return start, start.replace(day=last_day)
 
-    def days_counted() -> int:
-        """Days so far this month, or the whole month for other months."""
+    def daily_average(expenses: Sequence[ExpenseDto]) -> decimal.Decimal:
+        """Spending per day: for this month, only the days so far and the
+        expenses dated up to today; for other months, the whole month."""
         start, end = date_range()
-        return today.day if start == this_month else end.day
+        if start == this_month:
+            so_far = sum((e.price for e in expenses if e.date <= today), ZERO)
+            return so_far / today.day
+        return sum((e.price for e in expenses), ZERO) / end.day
 
     hero_box = ft.Container()
     transactions_box = ft.Container(expand=True)
     categories_box = ft.Container()
     incomes_box = ft.Container()
     payments_box = ft.Container()
+    debits_button_box = ft.Container()
+    debits_box = ft.Container()
+
+    def open_debits():
+        open_month_debits(page, month["start"], on_changed=refresh)
+
+    def untick(debit: MonthDebit):
+        toggle_debit(debit, month["start"], on=False)
+        refresh()
 
     def ask_delete_payment(payment: CreditPaymentDto):
         def delete():
@@ -192,9 +219,21 @@ def monthly_view(page: ft.Page) -> ft.Control:
         payments = list(search_credit_payments(CreditPaymentFilterDto(from_date=start, to_date=end)))
         month_title.value = start.strftime("%B %Y")
         carried_over = balance(to_date=start - datetime.timedelta(days=1))
+        debits = total_debit_payments(DebitPaymentFilterDto(given_date=start))
         hero_box.content = _hero(
-            expenses, incomes, payments, credit_balance(to_date=end), carried_over, days_counted()
+            expenses, incomes, payments, credit_balance(to_date=end), carried_over, debits, daily_average(expenses)
         )
+        this_months_debits = month_debits(start)
+        # The pill on the Debits button counts what still needs ticking off.
+        debits_button_box.content = theme.action_button(
+            "Debits",
+            ft.Icons.EVENT_REPEAT,
+            open_debits,
+            primary=False,
+            count=len(pending(this_months_debits)),
+            accent=theme.MAUVE,
+        )
+        debits_box.content = ticked_debits_card(this_months_debits, on_untick=untick, on_open=open_debits)
         transactions_box.content = transactions_card(expenses)
         categories_box.content = category_card(expenses)
         incomes_box.content = income_card(
@@ -261,13 +300,21 @@ def monthly_view(page: ft.Page) -> ft.Control:
             ft.Container(expand=True),
             month_switcher,
             ft.Container(width=4),
+            debits_button_box,
             theme.action_button(
                 "Repayment",
                 ft.Icons.CREDIT_CARD,
                 lambda: add_dialog("Add credit repayment", credit_payment_form),
                 primary=False,
+                accent=theme.AMBER,
             ),
-            theme.action_button("Income", ft.Icons.ADD, lambda: add_dialog("Add income", income_form), primary=False),
+            theme.action_button(
+                "Income",
+                ft.Icons.ADD,
+                lambda: add_dialog("Add income", income_form),
+                primary=False,
+                accent=theme.GREEN,
+            ),
             theme.action_button("Expense", ft.Icons.ADD, lambda: add_dialog("Add expense", expense_form)),
         ],
         spacing=8,
@@ -276,7 +323,7 @@ def monthly_view(page: ft.Page) -> ft.Control:
 
     main_column = ft.Column([hero_box, transactions_box], spacing=20, expand=True)
     rail = ft.Column(
-        [categories_box, incomes_box, payments_box],
+        [categories_box, incomes_box, payments_box, debits_box],
         spacing=20,
         width=RAIL_WIDTH,
         scroll=ft.ScrollMode.AUTO,

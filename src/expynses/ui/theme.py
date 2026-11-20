@@ -21,6 +21,7 @@ ON_ACCENT = "#1a1210"
 GREEN = "#6fd1a3"
 AMBER = "#e0b15a"
 SLATE = "#8fa3b8"
+MAUVE = "#c49aa8"  # debits (a warm dusty mauve)
 RED = "#e57373"
 
 # --- Shape ---
@@ -92,6 +93,12 @@ def money(amount: decimal.Decimal) -> str:
 
 def tinted(color: str, opacity: float = 0.15) -> str:
     return ft.Colors.with_opacity(opacity, color)
+
+
+def lighten(color: str, amount: float) -> str:
+    """A "#rrggbb" colour moved `amount` (0 to 1) of the way towards white."""
+    channels = (int(color[i : i + 2], 16) for i in (1, 3, 5))
+    return "#" + "".join(f"{round(c + (255 - c) * amount):02x}" for c in channels)
 
 
 # --- Building blocks ---
@@ -189,29 +196,65 @@ def action_button(
     icon: ft.IconData,
     on_click: Callable[[], None],
     primary: bool = True,
+    count: int | None = None,
+    accent: str | None = None,
 ) -> ft.Control:
-    """A compact header button: solid accent for the main action, ghost otherwise."""
+    """A compact header button: solid for the main action, ghost otherwise.
+
+    The accent is the colour of what the button adds (green for income, mauve
+    for debits). A main button is filled with it, terracotta when none is given.
+    A ghost button's icon wears it, and on hover the button picks up a faint
+    tint and border of it. A count, when given and above zero, shows as a small
+    pill after the text, in the accent colour.
+    """
+    fill = accent or ACCENT
     fg = ON_ACCENT if primary else TEXT_SOFT
-    content = ft.Row(
-        [
-            ft.Icon(icon, size=16, color=fg),
-            ft.Text(text, size=13, weight=ft.FontWeight.W_600, color=fg),
-        ],
-        spacing=6,
-        tight=True,
-    )
+    icon_color = accent if accent and not primary else fg
+    controls: list[ft.Control] = [
+        ft.Icon(icon, size=16, color=icon_color),
+        ft.Text(text, size=13, weight=ft.FontWeight.W_600, color=fg),
+    ]
+    if count:
+        controls.append(
+            ft.Container(
+                content=ft.Text(str(count), size=11, weight=ft.FontWeight.W_700, color=ON_ACCENT),
+                bgcolor=accent or ACCENT_TEXT,
+                border_radius=9,
+                height=18,
+                padding=ft.Padding.symmetric(horizontal=6),
+                alignment=ft.Alignment.CENTER,
+            )
+        )
+    content = ft.Row(controls, spacing=6, tight=True)
     button = ft.Container(
         content=content,
         height=CONTROL_HEIGHT,
         padding=ft.Padding.symmetric(horizontal=14),
         alignment=ft.Alignment.CENTER,
         border_radius=RADIUS_SM,
-        bgcolor=ACCENT if primary else SURFACE,
+        bgcolor=fill if primary else SURFACE,
         border=None if primary else ft.Border.all(1, BORDER),
         on_click=lambda _: on_click(),
         tooltip=None,
     )
-    return hoverable(button, "#dc8a6c" if primary else SURFACE_HIGH)
+    if primary:
+        return hoverable(button, lighten(fill, 0.12))
+    if not accent:
+        return hoverable(button, SURFACE_HIGH)
+
+    # Accented ghost: tint the fill and the edge on hover.
+    resting_border = button.border
+    hover_border = ft.Border.all(1, tinted(accent, 0.45))
+
+    def on_hover(e: ft.Event[ft.Container]):
+        hovering = bool(e.data)
+        e.control.bgcolor = tinted(accent, 0.10) if hovering else SURFACE
+        e.control.border = hover_border if hovering else resting_border
+        e.control.update()
+
+    button.on_hover = on_hover
+    button.animate = _HOVER_ANIMATION
+    return button
 
 
 def icon_button(icon: ft.IconData, tooltip: str, on_click: Callable[[], None], size: int = 32) -> ft.Control:

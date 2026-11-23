@@ -7,16 +7,15 @@ from decimal import Decimal
 
 import calendar
 import datetime
-import decimal
 import expynses.contracts.incomes as income_contracts
-import expynses.contracts.expenses as expense_contracts
 import expynses.contracts.credit_payments as credit_payments_contracts
-import expynses.contracts.debits as debit_contracts
+import expynses.contracts.expenses as expense_contracts
+import expynses.contracts.debits as debit_payment_contracts
 
 import expynses.db.incomes as db_incomes
 import expynses.db.credit_payments as db_credit_payments
 import expynses.db.expenses as db_expenses
-import expynses.db.debit_payment as db_debit_payments    
+import expynses.db.debit_payment as db_debit_payments
 
 def total_income(
     filter: income_contracts.IncomeFilterDto
@@ -28,7 +27,7 @@ def total_credit_payments(filter: CreditPaymentFilterDto) -> Decimal:
     return db_credit_payments.total_credit_payments(filter=filter)
 
 
-def total_debit_payments(filter: debit_contracts.DebitPaymentFilterDto) -> Decimal:
+def total_debit_payments(filter: debit_payment_contracts.DebitPaymentFilterDto) -> Decimal:
     return db_debit_payments.total_debit_payments(filter)
 
 
@@ -53,7 +52,7 @@ def balance(to_date: datetime.date | None = None) -> Decimal:
 
     repaid = db_credit_payments.total_credit_payments(credit_payments_contracts.CreditPaymentFilterDto(to_date=to_date))
 
-    debit_payments = db_debit_payments.total_debit_payments(debit_contracts.DebitPaymentFilterDto(to_date=to_date))
+    debit_payments = db_debit_payments.total_debit_payments(debit_payment_contracts.DebitPaymentFilterDto(to_date=to_date))
     
     return income - paid - repaid - debit_payments
 
@@ -66,15 +65,14 @@ def monthly_figures(year: int) -> Iterable[MonthFiguresDto]:
     running_balance = balance(to_date=end_of_last_year)
     running_owed = credit_balance(to_date=end_of_last_year)
 
+    incomes_by_month = db_incomes.total_year_income(year)
+    income = {i.month: i.total for i in incomes_by_month}
+
     for month in range(1, 13):
 
         first_day_of_month_date=datetime.date(year, month, 1)
         last_day = calendar.monthrange(year, month)[1]
         last_day_of_month_date=datetime.date(year, month, last_day)
-
-        income = db_incomes.total_income(income_contracts.IncomeFilterDto(
-            from_date=first_day_of_month_date, 
-            to_date=last_day_of_month_date))
         
         paid = db_expenses.total_expenses(expense_contracts.ExpenseFilterDto(
             from_date=first_day_of_month_date, 
@@ -90,18 +88,18 @@ def monthly_figures(year: int) -> Iterable[MonthFiguresDto]:
             from_date=first_day_of_month_date, 
             to_date=last_day_of_month_date))
 
-        debits = db_debit_payments.total_debit_payments(debit_contracts.DebitPaymentFilterDto(
+        debits = db_debit_payments.total_debit_payments(debit_payment_contracts.DebitPaymentFilterDto(
             from_date=first_day_of_month_date, 
             to_date=last_day_of_month_date))
 
-        running_balance += income - paid - card_repaid - debits
+        running_balance += income[month] - paid - card_repaid - debits
         running_owed += on_credit - card_repaid
 
         is_future = first_day_of_month_date > datetime.date.today()
 
         figures = MonthFiguresDto(
             month=month,
-            income=income,
+            income=income[month],
             paid=paid,
             on_credit=on_credit,
             card_repaid=card_repaid,

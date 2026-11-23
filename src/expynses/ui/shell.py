@@ -4,9 +4,12 @@ from dataclasses import dataclass
 import flet as ft
 
 from expynses.ui import theme
+from expynses.ui.cash_flow_page import cash_flow_view
+from expynses.ui.categories_page import categories_view
 from expynses.ui.debit_page import debits_view
 from expynses.ui.income_page import income_view
 from expynses.ui.monthly import monthly_view
+from expynses.ui.year_page import year_view
 
 
 @dataclass(frozen=True)
@@ -22,6 +25,9 @@ NAV_ITEMS = [
     NavItem("Monthly", ft.Icons.CALENDAR_MONTH_OUTLINED, monthly_view),
     NavItem("Income", ft.Icons.SAVINGS_OUTLINED, income_view),
     NavItem("Debits", ft.Icons.EVENT_REPEAT_OUTLINED, debits_view),
+    NavItem("Year", ft.Icons.CALENDAR_VIEW_MONTH_OUTLINED, year_view),
+    NavItem("Cash flow", ft.Icons.COMPARE_ARROWS, cash_flow_view),
+    NavItem("Categories", ft.Icons.DONUT_SMALL_OUTLINED, categories_view),
 ]
 
 

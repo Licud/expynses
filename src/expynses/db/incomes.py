@@ -4,11 +4,14 @@ from typing import Iterable
 from ._engine import get_session
 from ._models import Income
 
-from sqlalchemy import func, select, delete
+from sqlalchemy import func, select, delete, extract
 
 from expynses.contracts.incomes import IncomeDto, IncomeFilterDto, NewIncomeDto
-import decimal
+from expynses.contracts.totals import MonthTotalDto
+
+from decimal import Decimal
 import uuid
+
 
 
 def add_income(
@@ -48,13 +51,13 @@ def list_incomes(filter: IncomeFilterDto) -> Iterable[IncomeDto]:
         IncomeDto(
             id=income.id,
             date=income.date,
-            amount=decimal.Decimal(income.amount_pence) / 100,
+            amount=Decimal(income.amount_pence) / 100,
             source=income.source
         ) for income in incomes
     ]
 
 
-def total_income(filter: IncomeFilterDto) -> decimal.Decimal:
+def total_income(filter: IncomeFilterDto) -> Decimal:
 
     with get_session() as session:
         query = select(func.coalesce(func.sum(Income.amount_pence), 0))
@@ -68,7 +71,7 @@ def total_income(filter: IncomeFilterDto) -> decimal.Decimal:
 
         total = session.scalars(query).one()
 
-    return decimal.Decimal(total) / 100
+    return Decimal(total) / 100
 
 
 def delete_income(id: uuid.UUID):
@@ -76,3 +79,27 @@ def delete_income(id: uuid.UUID):
     with get_session() as session:
         session.execute(delete(Income).where(Income.id == id))
         session.commit()
+
+
+def total_year_income(year: int) -> Iterable[MonthTotalDto]:
+
+    with get_session() as session:
+        month = extract("month", Income.date).label("month")
+
+        query = (
+            select(month, func.coalesce(func.sum(Income.amount_pence), 0).label("total"))
+            .where(extract("year", Income.date) == year)
+            .group_by(month)
+            .order_by(month)
+        )
+
+        rows = session.execute(query).all()
+
+    totals = {}
+
+    for row in rows:
+        totals[row.month] = row.total
+
+    for month in range(1, 13):
+        total_as_decimal = Decimal(totals.get(month, 0)) / 100
+        yield MonthTotalDto(month=month, total=total_as_decimal)

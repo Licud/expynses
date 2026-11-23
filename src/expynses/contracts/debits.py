@@ -60,5 +60,6 @@ class DebitPaymentDto:
 class DebitPaymentFilterDto:
     id: uuid.UUID | None = None
     given_date: datetime.date | None = None
+    from_date: datetime.date | None = None
     to_date: datetime.date | None = None
 

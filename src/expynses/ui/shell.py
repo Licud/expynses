@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import flet as ft
 
+from expynses import __version__
 from expynses.ui import theme
 from expynses.ui.cash_flow_page import cash_flow_view
 from expynses.ui.categories_page import categories_view
@@ -115,10 +116,30 @@ def app_shell(page: ft.Page) -> ft.Control:
         padding=ft.Padding.only(left=12, bottom=8),
     )
 
+    version_label = ft.Container(
+        padding=ft.Padding.only(top=12, bottom=16),
+        content=ft.Row(
+            [
+                ft.Text(
+                    f"expynses v{__version__}",
+                    size=13,
+                    weight=ft.FontWeight.W_600,
+                    color=theme.MUTED,
+                )
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+        ),
+    )
+
     nav_panel = ft.Container(
         width=216,
         padding=ft.Padding.symmetric(horizontal=12),
-        content=ft.Column([logo, menu_label, nav_items], spacing=0),
+        # The expanding spacer pushes the version to the bottom of the panel.
+        content=ft.Column(
+            [logo, menu_label, nav_items, ft.Container(expand=True), version_label],
+            spacing=0,
+            expand=True,
+        ),
         bgcolor=theme.BG,
         border=ft.Border(right=ft.BorderSide(1, theme.BORDER)),
     )

@@ -26,6 +26,14 @@ from expynses.ui.expense_type_icons import icon_for_type
 
 
 DATE_FORMAT = "%d-%m-%Y"  # dd-MM-yyyy
+
+
+def picked_date(value: datetime.datetime) -> datetime.date:
+    """Flet hands back the picked day as a UTC datetime; convert to local so
+    zones ahead of UTC don't land on the previous day."""
+    if value.tzinfo is not None:
+        value = value.astimezone()
+    return value.date()
 TOAST_WIDTH = 300
 
 
@@ -99,7 +107,7 @@ def expense_form(
     def date_picked():
         if date_picker.value is None:
             return
-        date_field.value = date_picker.value.strftime(DATE_FORMAT)
+        date_field.value = picked_date(date_picker.value).strftime(DATE_FORMAT)
         page.update()
 
     date_picker = ft.DatePicker(value=start_date, on_change=date_picked)
@@ -203,7 +211,7 @@ def income_form(
     def date_picked():
         if date_picker.value is None:
             return
-        date_field.value = date_picker.value.strftime(DATE_FORMAT)
+        date_field.value = picked_date(date_picker.value).strftime(DATE_FORMAT)
         page.update()
 
     date_picker = ft.DatePicker(value=start_date, on_change=date_picked)
@@ -290,7 +298,7 @@ def credit_payment_form(
     def date_picked():
         if date_picker.value is None:
             return
-        date_field.value = date_picker.value.strftime(DATE_FORMAT)
+        date_field.value = picked_date(date_picker.value).strftime(DATE_FORMAT)
         page.update()
 
     date_picker = ft.DatePicker(value=start_date, on_change=date_picked)
@@ -438,7 +446,7 @@ def debit_template_form(
     def date_picked():
         if date_picker.value is None:
             return
-        date_field.value = date_picker.value.strftime(DATE_FORMAT)
+        date_field.value = picked_date(date_picker.value).strftime(DATE_FORMAT)
         page.update()
 
     date_picker = ft.DatePicker(value=start_date, on_change=date_picked)

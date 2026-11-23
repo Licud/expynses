@@ -73,3 +73,5 @@ def delete_credit_payment(id: uuid.UUID):
     with get_session() as session:
         session.execute(delete(CreditPayment).where(CreditPayment.id == id))
         session.commit()
+
+

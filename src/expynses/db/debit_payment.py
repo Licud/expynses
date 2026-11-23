@@ -52,6 +52,8 @@ def list_debit_payments(filter: DebitPaymentFilterDto) -> Iterable[DebitPaymentD
 
         if filter.id is not None:
             query = query.where(DebitPayment.id == filter.id)
+        if filter.from_date is not None:
+            query = query.where(DebitPayment.date >= filter.from_date)
         if filter.to_date is not None:
             query = query.where(DebitPayment.date <= filter.to_date)
         if filter.given_date is not None:
@@ -79,6 +81,8 @@ def total_debit_payments(filter: DebitPaymentFilterDto) -> decimal.Decimal:
 
         if filter.id is not None:
             query = query.where(DebitPayment.id == filter.id)
+        if filter.from_date is not None:
+            query = query.where(DebitPayment.date >= filter.from_date)
         if filter.to_date is not None:
             query = query.where(DebitPayment.date <= filter.to_date)
         if filter.given_date is not None:

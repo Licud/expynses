@@ -68,42 +68,34 @@ def monthly_figures(year: int) -> Iterable[MonthFiguresDto]:
     incomes_by_month = db_incomes.total_year_income(year)
     income = {i.month: i.total for i in incomes_by_month}
 
+    paid_expenses_by_month = db_expenses.total_year_expenses(year, is_credit=False)
+    paid_expenses = {i.month: i.total for i in paid_expenses_by_month}
+
+    credit_expenses_by_month = db_expenses.total_year_expenses(year, is_credit=True)
+    credit_expenses = {i.month: i.total for i in credit_expenses_by_month}
+
+    credit_payments_by_month = db_credit_payments.total_year_credit_payments(year)
+    credit_payments = {i.month: i.total for i in credit_payments_by_month}
+
+    debits_by_month = db_debit_payments.total_year_debit_payments(year)
+    debits = {i.month: i.total for i in debits_by_month}
+
     for month in range(1, 13):
 
         first_day_of_month_date=datetime.date(year, month, 1)
-        last_day = calendar.monthrange(year, month)[1]
-        last_day_of_month_date=datetime.date(year, month, last_day)
-        
-        paid = db_expenses.total_expenses(expense_contracts.ExpenseFilterDto(
-            from_date=first_day_of_month_date, 
-            to_date=last_day_of_month_date,
-            is_credit=False))
 
-        on_credit = db_expenses.total_expenses(expense_contracts.ExpenseFilterDto(
-            from_date=first_day_of_month_date, 
-            to_date=last_day_of_month_date,
-            is_credit=True))
-
-        card_repaid = db_credit_payments.total_credit_payments(credit_payments_contracts.CreditPaymentFilterDto(
-            from_date=first_day_of_month_date, 
-            to_date=last_day_of_month_date))
-
-        debits = db_debit_payments.total_debit_payments(debit_payment_contracts.DebitPaymentFilterDto(
-            from_date=first_day_of_month_date, 
-            to_date=last_day_of_month_date))
-
-        running_balance += income[month] - paid - card_repaid - debits
-        running_owed += on_credit - card_repaid
+        running_balance += income[month] - paid_expenses[month] - credit_payments[month] - debits[month]
+        running_owed += credit_expenses[month] - credit_payments[month]
 
         is_future = first_day_of_month_date > datetime.date.today()
 
         figures = MonthFiguresDto(
             month=month,
             income=income[month],
-            paid=paid,
-            on_credit=on_credit,
-            card_repaid=card_repaid,
-            debits=debits,
+            paid=paid_expenses[month],
+            on_credit=credit_expenses[month],
+            card_repaid=credit_payments[month],
+            debits=debits[month],
             balance=None if is_future else running_balance,
             card_owed=None if is_future else running_owed,
         )

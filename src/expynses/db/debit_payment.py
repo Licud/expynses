@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from sqlalchemy import func, select, extract
 
 from expynses.contracts.debits import DebitPaymentDto, DebitPaymentFilterDto
+from expynses.contracts.totals import MonthTotalDto
 from expynses.db._engine import get_session
 from expynses.db._models import DebitPayment, DebitTemplate
 
@@ -94,3 +95,27 @@ def total_debit_payments(filter: DebitPaymentFilterDto) -> decimal.Decimal:
         total = session.scalars(query).one()
 
     return decimal.Decimal(total) / 100
+
+
+def total_year_debit_payments(year: int) -> Iterable[MonthTotalDto]:
+
+    with get_session() as session:
+        month = extract("month", DebitPayment.date).label("month")
+
+        query = (
+            select(month, func.coalesce(func.sum(DebitPayment.amount_pence), 0).label("total"))
+            .where(extract("year", DebitPayment.date) == year)
+            .group_by(month)
+            .order_by(month)
+        )
+
+        rows = session.execute(query).all()
+
+    totals = {}
+
+    for row in rows:
+        totals[row.month] = row.total
+
+    for month in range(1, 13):
+        total_as_decimal = decimal.Decimal(totals.get(month, 0)) / 100
+        yield MonthTotalDto(month=month, total=total_as_decimal)

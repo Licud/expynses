@@ -220,3 +220,6 @@ __marimo__/
 .streamlit/secrets.toml
 # Local development database
 data/
+
+# Release zips produced by build.ps1
+release/

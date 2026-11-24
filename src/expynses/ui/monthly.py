@@ -95,13 +95,13 @@ def _hero(
     if left > 0:
         cash_legend.append(_legend(theme.SURFACE_HOVER, "Remaining", left))
 
-    # The card bar shows this month's card spending and how much of it has been
-    # repaid: slate is repaid, amber is still owed from this month's spending.
-    card_scale = max(on_credit, card_paid)
-    repaid_part = min(card_paid, on_credit) if on_credit else card_paid
+    # The card bar mirrors its legend: amber is the total still owed on the card,
+    # slate is what was repaid this month, both measured against their sum.
+    owed = max(card_balance, ZERO)
+    card_scale = owed + card_paid
     card_parts = [
-        (float(repaid_part / card_scale) if card_scale else 0.0, theme.SLATE),
-        (float((on_credit - repaid_part) / card_scale) if card_scale else 0.0, theme.AMBER),
+        (float(owed / card_scale) if card_scale else 0.0, theme.AMBER),
+        (float(card_paid / card_scale) if card_scale else 0.0, theme.SLATE),
     ]
     card_legend = [
         _legend(theme.AMBER, "Credit card owed", card_balance),

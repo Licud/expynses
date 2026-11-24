@@ -12,7 +12,7 @@ from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto
 from expynses.contracts.incomes import IncomeDto, IncomeFilterDto
 from expynses.services.credit_payments import delete_credit_payment, search_credit_payments
 from expynses.services.expenses import search_expenses
-from expynses.services.incomes import search_incomes
+from expynses.services.incomes import delete_income, search_incomes
 from expynses.services.totals import balance, credit_balance, total_debit_payments
 from expynses.ui import theme
 from expynses.ui.credit_payment_list import credit_payment_card
@@ -212,6 +212,17 @@ def monthly_view(page: ft.Page) -> ft.Control:
             delete,
         )
 
+    def ask_delete_income(income: IncomeDto):
+        def delete():
+            delete_income(income.id)
+            refresh()
+
+        confirm_delete(
+            page,
+            f"Delete the {theme.money(income.amount)} income from {income.source}?",
+            delete,
+        )
+
     def load():
         start, end = date_range()
         expenses = list(search_expenses(ExpenseFilterDto(from_date=start, to_date=end)))
@@ -237,7 +248,7 @@ def monthly_view(page: ft.Page) -> ft.Control:
         transactions_box.content = transactions_card(expenses)
         categories_box.content = category_card(expenses)
         incomes_box.content = income_card(
-            incomes, title="Income", empty_text="No income this month", show_date=False
+            incomes, on_delete=ask_delete_income, title="Income", empty_text="No income this month", show_date=False
         )
         payments_box.content = credit_payment_card(payments, on_delete=ask_delete_payment)
 

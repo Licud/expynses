@@ -6,9 +6,9 @@ from collections.abc import Sequence
 import flet as ft
 
 from expynses.contracts.incomes import IncomeDto, IncomeFilterDto
-from expynses.services.incomes import search_incomes
+from expynses.services.incomes import delete_income, search_incomes
 from expynses.ui import theme
-from expynses.ui.dialogs import open_add_dialog
+from expynses.ui.dialogs import confirm_delete, open_add_dialog
 from expynses.ui.forms import income_form
 from expynses.ui.income_list import income_by_month_card
 
@@ -85,10 +85,22 @@ def income_view(page: ft.Page) -> ft.Control:
     summary_box = ft.Container()
     list_box = ft.Container()
 
+    def ask_delete(income: IncomeDto):
+        def delete():
+            delete_income(income.id)
+            refresh()
+
+        confirm_delete(
+            page,
+            f"Delete the {theme.money(income.amount)} income from {income.source} "
+            f"on {income.date.strftime('%d %b %Y')}?",
+            delete,
+        )
+
     def load():
         incomes = list(search_incomes(IncomeFilterDto()))
         summary_box.content = _summary(incomes, datetime.date.today())
-        list_box.content = income_by_month_card(incomes)
+        list_box.content = income_by_month_card(incomes, on_delete=ask_delete)
 
     def refresh():
         load()

@@ -3,7 +3,7 @@ decides when to load."""
 
 import decimal
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from itertools import groupby
 
 import flet as ft
@@ -12,12 +12,7 @@ from expynses.contracts.incomes import IncomeDto
 from expynses.ui import theme
 
 
-def _delete_button() -> ft.Control:
-    # Not wired up yet: there is no delete in the backend.
-    return theme.icon_button(ft.Icons.DELETE_OUTLINE, "Delete", lambda: None, size=28)
-
-
-def _row(income: IncomeDto, show_date: bool) -> ft.Control:
+def _row(income: IncomeDto, show_date: bool, on_delete: Callable[[IncomeDto], None]) -> ft.Control:
     lines: list[ft.Control] = [
         ft.Text(
             income.source,
@@ -43,7 +38,7 @@ def _row(income: IncomeDto, show_date: bool) -> ft.Control:
                         weight=ft.FontWeight.W_600,
                         color=theme.GREEN,
                     ),
-                    _delete_button(),
+                    theme.icon_button(ft.Icons.DELETE_OUTLINE, "Delete", lambda: on_delete(income), size=28),
                 ],
                 spacing=12,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -54,6 +49,7 @@ def _row(income: IncomeDto, show_date: bool) -> ft.Control:
 
 def income_card(
     incomes: Sequence[IncomeDto],
+    on_delete: Callable[[IncomeDto], None],
     title: str = "Income",
     empty_text: str = "No income recorded",
     show_date: bool = True,
@@ -67,7 +63,7 @@ def income_card(
         padding=ft.Padding.only(left=12, right=12, bottom=6),
     )
     if incomes:
-        rows: list[ft.Control] = [_row(i, show_date) for i in incomes]
+        rows: list[ft.Control] = [_row(i, show_date, on_delete) for i in incomes]
     else:
         rows = [
             ft.Container(
@@ -95,7 +91,11 @@ def _month_header(incomes: list[IncomeDto]) -> ft.Control:
     )
 
 
-def income_by_month_card(incomes: Sequence[IncomeDto], title: str = "All income") -> ft.Control:
+def income_by_month_card(
+    incomes: Sequence[IncomeDto],
+    on_delete: Callable[[IncomeDto], None],
+    title: str = "All income",
+) -> ft.Control:
     """Every income, newest first, under a header and total for each month."""
     total = sum((i.amount for i in incomes), decimal.Decimal(0))
     header = ft.Container(
@@ -117,7 +117,7 @@ def income_by_month_card(incomes: Sequence[IncomeDto], title: str = "All income"
     for _, group in groupby(ordered, key=lambda i: (i.date.year, i.date.month)):
         month = list(group)
         rows.append(_month_header(month))
-        rows += [_row(i, show_date=True) for i in month]
+        rows += [_row(i, True, on_delete) for i in month]
     if not rows:
         rows = [
             ft.Container(

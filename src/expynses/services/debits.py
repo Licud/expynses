@@ -7,12 +7,14 @@ import expynses.contracts.debits as debit_payment_contracts
 
 from collections.abc import Iterable
 from datetime import datetime
+from decimal import Decimal
 
 def add_debit_payment(
     template_id: uuid.UUID,
-    date: datetime
+    date: datetime,
+    override_amount: Decimal | None = None
 ) -> uuid.UUID:
-    return db_debit_payments.add_debit_payment(template_id, date)
+    return db_debit_payments.add_debit_payment(template_id, date, override_amount)
 
 
 def update_debit_template(

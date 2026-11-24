@@ -1,5 +1,5 @@
 """The monthly debits pop-up: every debit due in a month as a grid of tiles,
-each with a switch that ticks it off (applies it) for that month."""
+each of which ticks it off (applies it) for that month when clicked."""
 
 import datetime
 import decimal
@@ -24,14 +24,14 @@ from expynses.services.debits import (
     search_debit_templates,
 )
 from expynses.ui import theme
-from expynses.ui.debit_page import debit_icon, schedule_text
+from expynses.ui.debit_page import debit_icon
 
 ZERO = decimal.Decimal(0)
 
 COLUMNS = 3
-TILE_WIDTH = 228
-TILE_HEIGHT = 124
-GAP = 12
+TILE_WIDTH = 256
+TILE_HEIGHT = 64
+GAP = 10
 GRID_WIDTH = COLUMNS * TILE_WIDTH + (COLUMNS - 1) * GAP
 MAX_GRID_HEIGHT = 440
 
@@ -51,6 +51,11 @@ class MonthDebit:
     def amount(self) -> decimal.Decimal:
         # Once applied, the payment keeps the amount it was applied at.
         return self.payment.amount if self.payment else self.template.amount
+
+    @property
+    def overridden(self) -> bool:
+        """Ticked at an amount other than the template's: a one-off for this month."""
+        return self.payment is not None and self.payment.amount != self.template.amount
 
 
 def _due_in(template: DebitTemplateDto, month: datetime.date) -> bool:
@@ -84,74 +89,91 @@ def pending(debits: list[MonthDebit]) -> list[MonthDebit]:
     return [d for d in debits if not d.applied and d.template.is_active]
 
 
-def _tile(debit: MonthDebit, on_toggle: Callable[[MonthDebit, bool], None]) -> ft.Control:
+def _tile(
+    debit: MonthDebit,
+    on_toggle: Callable[[MonthDebit, bool], None],
+    on_override: Callable[[MonthDebit], None],
+) -> ft.Control:
     template = debit.template
     locked = not template.is_active
+    overridden = debit.overridden
 
     if locked:
         detail = "Paused · resume it in Debits"
-    elif debit.payment and debit.payment.amount != template.amount:
-        detail = f"Ticked at old amount · now {theme.money(template.amount)}"
+    elif overridden:
+        detail = f"One-off · usually {theme.money(template.amount)}"
     else:
-        detail = schedule_text(template) + (" · Savings" if template.is_savings else "")
-
-    switch = ft.Switch(
-        value=debit.applied,
-        disabled=locked,
-        scale=0.85,
-        active_color=theme.ON_ACCENT,
-        active_track_color=theme.MAUVE,
-        on_change=lambda e: on_toggle(debit, bool(e.control.value)),
-    )
+        # The section header says Monthly / Yearly and the green pig marks savings,
+        # so a normal tile needs no detail.
+        detail = ""
 
     resting = theme.tinted(theme.MAUVE, 0.08) if debit.applied else theme.SURFACE_HIGH
     tile = ft.Container(
         width=TILE_WIDTH,
         height=TILE_HEIGHT,
-        padding=ft.Padding.only(left=14, right=6, top=10, bottom=12),
+        padding=ft.Padding.only(left=12, right=4, top=8, bottom=8),
         border_radius=theme.RADIUS,
         bgcolor=resting,
         border=ft.Border.all(1, theme.tinted(theme.MAUVE, 0.35) if debit.applied else theme.BORDER),
         opacity=0.55 if locked else 1.0,
-        # The whole tile is a big switch.
+        # The whole tile is the switch: click to tick off, click again to untick.
         on_click=None if locked else (lambda _: on_toggle(debit, not debit.applied)),
-        content=ft.Column(
+        # One row: icon | name over amount and detail | edit.
+        content=ft.Row(
             [
-                ft.Row(
-                    [debit_icon(template), ft.Container(expand=True), switch],
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                ft.Container(expand=True),
-                ft.Text(
-                    template.name,
-                    size=14,
-                    weight=ft.FontWeight.W_600,
-                    color=theme.TEXT,
-                    max_lines=1,
-                    overflow=ft.TextOverflow.ELLIPSIS,
-                ),
-                ft.Row(
+                debit_icon(template),
+                ft.Column(
                     [
                         ft.Text(
-                            theme.money(debit.amount),
-                            size=15,
+                            template.name,
+                            size=14,
                             weight=ft.FontWeight.W_600,
-                            color=theme.MAUVE if debit.applied else theme.TEXT_SOFT,
-                        ),
-                        ft.Text(
-                            detail,
-                            size=11,
-                            color=theme.MUTED,
+                            color=theme.TEXT,
                             max_lines=1,
                             overflow=ft.TextOverflow.ELLIPSIS,
-                            expand=True,
+                        ),
+                        ft.Row(
+                            [
+                                ft.Text(
+                                    theme.money(debit.amount),
+                                    size=14,
+                                    weight=ft.FontWeight.W_600,
+                                    color=theme.AMBER
+                                    if overridden
+                                    else (theme.MAUVE if debit.applied else theme.TEXT_SOFT),
+                                ),
+                                ft.Text(
+                                    detail,
+                                    size=11,
+                                    color=theme.MUTED,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                    expand=True,
+                                ),
+                            ],
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
                     ],
-                    spacing=8,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=0,
+                    expand=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                *(
+                    []
+                    if locked
+                    else [
+                        theme.icon_button(
+                            ft.Icons.EDIT if overridden else ft.Icons.EDIT_OUTLINED,
+                            "Change the amount for this month only",
+                            lambda: on_override(debit),
+                            size=26,
+                        )
+                    ]
                 ),
             ],
-            spacing=2,
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
     )
     if locked:
@@ -160,7 +182,7 @@ def _tile(debit: MonthDebit, on_toggle: Callable[[MonthDebit, bool], None]) -> f
     return theme.hoverable(tile, hover)
 
 
-def _section(title: str, debits: list[MonthDebit], on_toggle) -> list[ft.Control]:
+def _section(title: str, debits: list[MonthDebit], on_toggle, on_override) -> list[ft.Control]:
     if not debits:
         return []
     ticked = sum(1 for d in debits if d.applied)
@@ -172,7 +194,7 @@ def _section(title: str, debits: list[MonthDebit], on_toggle) -> list[ft.Control
         spacing=8,
     )
     grid = ft.Row(
-        [_tile(d, on_toggle) for d in debits],
+        [_tile(d, on_toggle, on_override) for d in debits],
         wrap=True,
         spacing=GAP,
         run_spacing=GAP,
@@ -255,11 +277,90 @@ def toggle_debit(debit: MonthDebit, month: datetime.date, on: bool) -> None:
         delete_debit_payment(debit.template.id, month)
 
 
+def set_debit_amount(debit: MonthDebit, month: datetime.date, amount: decimal.Decimal | None) -> None:
+    """Tick a debit off for a month at a one-off amount (None for the usual one),
+    replacing its payment if it was already ticked."""
+    if debit.applied:
+        delete_debit_payment(debit.template.id, month)
+    if amount == debit.template.amount:
+        amount = None
+    add_debit_payment(debit.template.id, month, amount)
+
+
 def open_month_debits(page: ft.Page, month: datetime.date, on_changed: Callable[[], None]) -> None:
     """Show the debits due in `month`. on_changed runs after every switch, so the
     page behind can refresh its totals."""
     body = ft.Column(spacing=18, tight=True, width=GRID_WIDTH)
     apply_all_box = ft.Container()
+
+    def ask_override(debit: MonthDebit):
+        template = debit.template
+        field = ft.TextField(
+            label="Amount for this month",
+            prefix="£",
+            value=f"{debit.amount:.2f}",
+            autofocus=True,
+            border_radius=10,
+            keyboard_type=ft.KeyboardType.NUMBER,
+        )
+
+        def close_ask():
+            ask.open = False
+            page.update()
+
+        def save():
+            try:
+                value = decimal.Decimal(field.value.replace(",", "").strip()).quantize(decimal.Decimal("0.01"))
+                if value < 0:
+                    raise decimal.InvalidOperation
+            except (decimal.InvalidOperation, AttributeError):
+                field.error = "Enter an amount, e.g. 82.50"
+                page.update()
+                return
+            set_debit_amount(debit, month, value)
+            close_ask()
+            render()
+            on_changed()
+
+        def reset():
+            set_debit_amount(debit, month, None)
+            close_ask()
+            render()
+            on_changed()
+
+        ask = ft.AlertDialog(
+            bgcolor=theme.SURFACE,
+            shape=ft.RoundedRectangleBorder(radius=16),
+            title=ft.Column(
+                [theme.label(f"{month.strftime('%B %Y')} only"), theme.heading(template.name, size=21)],
+                spacing=2,
+            ),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f"Usually {theme.money(template.amount)}. This changes the amount for "
+                        f"{month.strftime('%B')} only; every other month stays the same.",
+                        size=13,
+                        color=theme.MUTED,
+                    ),
+                    field,
+                ],
+                spacing=14,
+                tight=True,
+                width=340,
+            ),
+            actions=[
+                ft.TextButton(
+                    "Reset to usual",
+                    on_click=reset,
+                    visible=debit.overridden,
+                    style=ft.ButtonStyle(color=theme.MUTED),
+                ),
+                ft.TextButton("Cancel", on_click=close_ask),
+                ft.TextButton("Save", on_click=save, style=ft.ButtonStyle(color=theme.AMBER)),
+            ],
+        )
+        page.show_dialog(ask)
 
     def toggle(debit: MonthDebit, on: bool):
         toggle_debit(debit, month, on)
@@ -288,7 +389,10 @@ def open_month_debits(page: ft.Page, month: datetime.date, on_changed: Callable[
         body.controls = [
             _progress(debits),
             ft.Column(
-                [*_section("Monthly", monthly, toggle), *_section("Yearly", yearly, toggle)],
+                [
+                    *_section("Monthly", monthly, toggle, ask_override),
+                    *_section("Yearly", yearly, toggle, ask_override),
+                ],
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO if grid_height > MAX_GRID_HEIGHT else None,
                 height=min(grid_height, MAX_GRID_HEIGHT),

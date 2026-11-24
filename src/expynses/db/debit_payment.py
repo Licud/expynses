@@ -1,6 +1,7 @@
 
 import uuid
-import decimal
+
+from decimal import Decimal
 
 from datetime import datetime
 
@@ -13,16 +14,21 @@ from expynses.db._engine import get_session
 from expynses.db._models import DebitPayment, DebitTemplate
 
 
-def add_debit_payment(template_id: uuid.UUID, date: datetime) -> uuid.UUID:
+def add_debit_payment(template_id: uuid.UUID, date: datetime, override_amount: Decimal | None) -> uuid.UUID:
 
     with get_session() as session:
         template = session.scalars(select(DebitTemplate).where(DebitTemplate.id == template_id)).one()
 
         date = date.replace(day=1)  # Normalize to the first of the month
 
+        amount = template.amount_pence
+
+        if override_amount is not None:
+            amount = round(override_amount * 100)
+
         payment = DebitPayment(
             date=date,
-            amount_pence=template.amount_pence,
+            amount_pence=amount,
             template_id=template.id
         )
 
@@ -69,13 +75,13 @@ def list_debit_payments(filter: DebitPaymentFilterDto) -> Iterable[DebitPaymentD
         DebitPaymentDto(
             id=payment.id,
             date=payment.date,
-            amount=decimal.Decimal(payment.amount_pence) / 100,
+            amount=Decimal(payment.amount_pence) / 100,
             template_id=payment.template_id
         ) for payment in payments
     ]
 
 
-def total_debit_payments(filter: DebitPaymentFilterDto) -> decimal.Decimal:
+def total_debit_payments(filter: DebitPaymentFilterDto) -> Decimal:
 
     with get_session() as session:
         query = select(func.coalesce(func.sum(DebitPayment.amount_pence), 0))
@@ -94,7 +100,7 @@ def total_debit_payments(filter: DebitPaymentFilterDto) -> decimal.Decimal:
 
         total = session.scalars(query).one()
 
-    return decimal.Decimal(total) / 100
+    return Decimal(total) / 100
 
 
 def total_year_debit_payments(year: int) -> Iterable[MonthTotalDto]:
@@ -117,5 +123,5 @@ def total_year_debit_payments(year: int) -> Iterable[MonthTotalDto]:
         totals[row.month] = row.total
 
     for month in range(1, 13):
-        total_as_decimal = decimal.Decimal(totals.get(month, 0)) / 100
+        total_as_decimal = Decimal(totals.get(month, 0)) / 100
         yield MonthTotalDto(month=month, total=total_as_decimal)

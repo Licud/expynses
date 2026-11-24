@@ -22,6 +22,7 @@ from expynses.ui.dialogs import confirm_delete, open_add_dialog
 from expynses.ui.expense_list import category_card, transactions_card
 from expynses.ui.forms import credit_payment_form, expense_form, income_form
 from expynses.ui.income_list import income_card
+from expynses.ui.month_picker import open_month_picker
 
 ZERO = decimal.Decimal(0)
 RAIL_WIDTH = 340
@@ -255,6 +256,13 @@ def monthly_view(page: ft.Page) -> ft.Control:
         month["start"] = this_month
         refresh()
 
+    def go_to_month(start: datetime.date):
+        month["start"] = start
+        refresh()
+
+    def pick_month():
+        open_month_picker(page, month["start"], go_to_month)
+
     def add_dialog(title: str, build_form):
         # Add to the month on screen: today if it's the current month.
         default = today if month["start"] == this_month else month["start"]
@@ -285,6 +293,8 @@ def monthly_view(page: ft.Page) -> ft.Control:
                     ),
                     theme.SURFACE_HOVER,
                 ),
+                divider,
+                theme.icon_button(ft.Icons.CALENDAR_MONTH, "Pick a month", pick_month, size=30),
                 divider,
                 theme.icon_button(ft.Icons.CHEVRON_RIGHT, "Next month", lambda: shift_month(1), size=30),
             ],

@@ -41,6 +41,7 @@ class CreditPayment(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     date: Mapped[datetime.date]
     amount_pence: Mapped[int]
+    is_external: Mapped[bool]
 
 
 class DebitFrequency(Base):

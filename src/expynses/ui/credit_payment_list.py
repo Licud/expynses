@@ -12,6 +12,9 @@ from expynses.ui import theme
 
 
 def _row(payment: CreditPaymentDto, on_delete: Callable[[CreditPaymentDto], None]) -> ft.Control:
+    tags: list[ft.Control] = []
+    if payment.is_external:
+        tags.append(theme.badge("External", theme.SLATE))
     return theme.hoverable(
         ft.Container(
             padding=ft.Padding.only(left=12, right=6, top=8, bottom=8),
@@ -19,10 +22,12 @@ def _row(payment: CreditPaymentDto, on_delete: Callable[[CreditPaymentDto], None
             content=ft.Row(
                 [
                     theme.icon_tile(ft.Icons.CREDIT_CARD, theme.AMBER, size=30),
-                    ft.Text(
-                        payment.date.strftime("%a %d %b"),
-                        size=14,
-                        weight=ft.FontWeight.W_500,
+                    ft.Row(
+                        [
+                            ft.Text(payment.date.strftime("%a %d %b"), size=14, weight=ft.FontWeight.W_500),
+                            *tags,
+                        ],
+                        spacing=8,
                         expand=True,
                     ),
                     ft.Text(

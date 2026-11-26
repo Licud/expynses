@@ -164,9 +164,8 @@ def _row(
         tight=True,
     )
 
-    switch = ft.Switch(
+    switch = theme.toggle(
         value=template.is_active,
-        scale=0.8,
         tooltip="Pause" if template.is_active else "Resume",
         on_change=lambda e: on_set_active(template, bool(e.control.value)),
     )

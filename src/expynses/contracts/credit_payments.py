@@ -1,25 +1,28 @@
 
 from dataclasses import dataclass
+from decimal import Decimal
+from datetime import date
 
-import datetime
-import decimal
 import uuid
 
 @dataclass(frozen=True, kw_only=True)
 class NewCreditPaymentDto:
-    date: datetime.date
-    amount: decimal.Decimal
+    date: date
+    amount: Decimal
+    is_external: bool
 
 
 @dataclass(frozen=True, kw_only=True)
 class CreditPaymentDto:
     id: uuid.UUID
-    date: datetime.date
-    amount: decimal.Decimal
+    date: date
+    amount: Decimal
+    is_external: bool
 
 
 @dataclass(frozen=True, kw_only=True)
 class CreditPaymentFilterDto:
     id: uuid.UUID | None = None
-    from_date: datetime.date | None = None
-    to_date: datetime.date | None = None
+    from_date: date | None = None
+    to_date: date | None = None
+    is_external: bool | None = None

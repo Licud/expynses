@@ -20,6 +20,7 @@ def add_credit_payment(
     credit_payment = CreditPayment(
         date=new_credit_payment.date,
         amount_pence=amount_pence,
+        is_external=new_credit_payment.is_external
     )
 
     with get_session() as session:
@@ -39,6 +40,8 @@ def list_credit_payments(filter: CreditPaymentFilterDto) -> Iterable[CreditPayme
             query = query.where(CreditPayment.date <= filter.to_date)
         if filter.id is not None:
             query = query.where(CreditPayment.id == filter.id)
+        if filter.is_external is not None:
+            query = query.where(CreditPayment.is_external == filter.is_external)
 
         query = query.order_by(CreditPayment.date.desc())
         credit_payments = session.scalars(query).all()
@@ -47,7 +50,8 @@ def list_credit_payments(filter: CreditPaymentFilterDto) -> Iterable[CreditPayme
         CreditPaymentDto(
             id=credit_payment.id,
             date=credit_payment.date,
-            amount=Decimal(credit_payment.amount_pence) / 100
+            amount=Decimal(credit_payment.amount_pence) / 100,
+            is_external=credit_payment.is_external
         ) for credit_payment in credit_payments
     ]
 
@@ -63,6 +67,8 @@ def total_credit_payments(filter: CreditPaymentFilterDto) -> Decimal:
             query = query.where(CreditPayment.date <= filter.to_date)
         if filter.id is not None:
             query = query.where(CreditPayment.id == filter.id)
+        if filter.is_external is not None:
+            query = query.where(CreditPayment.is_external == filter.is_external)
 
         total = session.scalars(query).one()
 
@@ -76,17 +82,21 @@ def delete_credit_payment(id: uuid.UUID):
         session.commit()
 
 
-def total_year_credit_payments(year: int) -> Iterable[MonthTotalDto]:
+def total_year_credit_payments(year: int, is_external: bool | None = None) -> Iterable[MonthTotalDto]:
 
     with get_session() as session:
         month = extract("month", CreditPayment.date).label("month")
 
+
         query = (
             select(month, func.coalesce(func.sum(CreditPayment.amount_pence), 0).label("total"))
-            .where(extract("year", CreditPayment.date) == year)
-            .group_by(month)
-            .order_by(month)
+            .where(extract("year", CreditPayment.date) == year)   
         )
+        
+        if is_external is not None:
+            query = query.where(CreditPayment.is_external == is_external)
+
+        query = query.group_by(month).order_by(month)
 
         rows = session.execute(query).all()
 

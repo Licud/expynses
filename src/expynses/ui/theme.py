@@ -271,3 +271,45 @@ def icon_button(icon: ft.IconData, tooltip: str, on_click: Callable[[], None], s
         ),
         SURFACE_HOVER,
     )
+
+
+# --- Toggles ---
+
+
+def toggle(value: bool = False, **kwargs) -> ft.Switch:
+    """A compact switch: no outline, muted when off, terracotta when on.
+    Extra keyword arguments (disabled, tooltip, on_change...) go to the Switch."""
+    return ft.Switch(
+        **kwargs,
+        value=value,
+        scale=0.8,
+        active_color=ON_ACCENT,
+        active_track_color=ACCENT,
+        inactive_thumb_color=MUTED,
+        inactive_track_color=SURFACE_HOVER,
+        track_outline_color=ft.Colors.TRANSPARENT,
+        material_tap_target_size=ft.MaterialTapTargetSize.SHRINK_WRAP,
+    )
+
+
+def toggle_row(label: str, switch: ft.Switch, visible: bool = True) -> ft.Control:
+    """A settings-style row: label on the left, the switch on the right.
+    Clicking the label flips the switch too (unless it's disabled)."""
+
+    def flip():
+        if switch.disabled:
+            return
+        switch.value = not switch.value
+        switch.update()
+
+    return ft.Container(
+        visible=visible,
+        content=ft.Row(
+            [
+                ft.Text(label, size=14, color=TEXT_SOFT, expand=True),
+                switch,
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        on_click=lambda _: flip(),
+    )

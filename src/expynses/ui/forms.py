@@ -87,8 +87,8 @@ def expense_form(
         border_radius=10,
     )
     notes = ft.TextField(label="Notes", multiline=True, min_lines=2, border_radius=10)
-    is_credit = ft.Switch(label="Paid by credit card")
-    add_another = ft.Switch(label="Add another after saving", value=True)
+    is_credit = theme.toggle()
+    add_another = theme.toggle(value=True)
     expense_type = ft.Dropdown(
         label="Type",
         border_radius=10,
@@ -171,8 +171,8 @@ def expense_form(
             price,
             ft.Row([expense_type]),
             notes,
-            is_credit,
-            add_another,
+            theme.toggle_row("Paid by credit card", is_credit),
+            theme.toggle_row("Add another after saving", add_another),
             ft.FilledButton(
                 "Save expense",
                 icon=ft.Icons.SAVE,
@@ -206,7 +206,7 @@ def income_form(
         border_radius=10,
     )
     source = ft.TextField(label="Source", border_radius=10)
-    add_another = ft.Switch(label="Add another after saving", value=True)
+    add_another = theme.toggle()
 
     def date_picked():
         if date_picker.value is None:
@@ -265,7 +265,7 @@ def income_form(
             date_field,
             amount,
             source,
-            add_another,
+            theme.toggle_row("Add another after saving", add_another),
             ft.FilledButton("Save income", icon=ft.Icons.SAVE, on_click=save, height=44),
         ],
     )
@@ -293,7 +293,9 @@ def credit_payment_form(
         keyboard_type=ft.KeyboardType.NUMBER,
         border_radius=10,
     )
-    add_another = ft.Switch(label="Add another after saving", value=False)
+    # External repayments (paid by someone else) clear the card but don't come out of the account.
+    external = theme.toggle()
+    add_another = theme.toggle()
 
     def date_picked():
         if date_picker.value is None:
@@ -334,6 +336,7 @@ def credit_payment_form(
             NewCreditPaymentDto(
                 date=payment_date,
                 amount=amount_value,
+                is_external=bool(external.value),
             )
         )
 
@@ -356,7 +359,8 @@ def credit_payment_form(
         controls=[
             date_field,
             amount,
-            add_another,
+            theme.toggle_row("Paid from an external source", external),
+            theme.toggle_row("Add another after saving", add_another),
             ft.FilledButton("Save repayment", icon=ft.Icons.SAVE, on_click=save, height=44),
         ],
     )
@@ -454,9 +458,9 @@ def debit_template_form(
     def pick_date():
         page.show_dialog(date_picker)
 
-    is_savings = ft.Switch(value=template.is_savings if template else False, disabled=editing)
-    is_active = ft.Switch(value=template.is_active if template else True)
-    add_another = ft.Switch(label="Add another after saving", value=False, visible=not editing)
+    is_savings = theme.toggle(value=template.is_savings if template else False, disabled=editing)
+    is_active = theme.toggle(value=template.is_active if template else True)
+    add_another = theme.toggle()
 
     async def save():
         name.error = None
@@ -539,7 +543,7 @@ def debit_template_form(
             date_field,
             _setting_row("Savings", savings_detail, is_savings),
             _setting_row("Active", "Inactive debits can't be ticked off in a month", is_active),
-            add_another,
+            theme.toggle_row("Add another after saving", add_another, visible=not editing),
             ft.FilledButton(
                 "Save changes" if editing else "Save debit",
                 icon=ft.Icons.SAVE,

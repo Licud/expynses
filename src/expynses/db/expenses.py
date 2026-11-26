@@ -1,16 +1,19 @@
 import uuid
 
 from decimal import Decimal
+from datetime import date
 from collections.abc import Iterable
 
 from sqlalchemy import func, select, extract
 
+from expynses.contracts.expenses import TypeMonthTotalDto
+from expynses.contracts.expenses_types import ExpenseTypeDto
 from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto, NewExpenseDto
 from expynses.db.expense_types import list_expense_types
 from expynses.contracts.totals import MonthTotalDto
 
 from ._engine import get_session
-from ._models import Expense
+from ._models import Expense, ExpenseType
 
 
 def add_expense(
@@ -104,3 +107,38 @@ def total_year_expenses(year: int, is_credit: bool) -> Iterable[MonthTotalDto]:
     for month in range(1, 13):
         total_as_decimal = Decimal(totals.get(month, 0)) / 100
         yield MonthTotalDto(month=month, total=total_as_decimal)
+
+
+def total_expenses_by_type(filter: ExpenseFilterDto) -> Iterable[TypeMonthTotalDto]:
+
+    with get_session() as session:
+        month = extract("month", Expense.date)
+        year = extract("year", Expense.date)
+
+        query = select(Expense.expense_type_id.label('expense_type_id'), 
+                       ExpenseType.name.label('expense_type_name'),
+                       month.label('month'),
+                       year.label('year'),
+                       func.coalesce(func.sum(Expense.price_pence), 0).label('total'))
+
+        query = query.join(ExpenseType, ExpenseType.id == Expense.expense_type_id)
+
+        if filter.from_date is not None:
+            query = query.where(Expense.date >= filter.from_date)
+        if filter.to_date is not None:
+            query = query.where(Expense.date <= filter.to_date)
+        if filter.is_credit is not None:
+            query = query.where(Expense.is_credit == filter.is_credit)
+
+        query = query.group_by(Expense.expense_type_id).group_by(year).group_by(month)
+
+        query_result = session.execute(query).all()
+
+    return [
+        TypeMonthTotalDto(
+            expense_type=ExpenseTypeDto(id=result.expense_type_id,
+                                        name= result.expense_type_name ),
+            month=date(result.year, result.month, 1),
+            total=Decimal(result.total) / 100
+        ) for result in query_result
+    ]

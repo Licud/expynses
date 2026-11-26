@@ -13,8 +13,7 @@ import decimal
 from collections import defaultdict
 from dataclasses import dataclass
 
-from expynses.contracts.expenses import ExpenseDto, ExpenseFilterDto
-from expynses.services.expenses import search_expenses
+from expynses.services.expenses import spending_by_type
 from expynses.services.expenses_types import get_expense_types
 from expynses.services.totals import monthly_figures
 
@@ -125,15 +124,12 @@ class CategorySpending:
         return sum((self.month_total(m) for m in self.months), ZERO)
 
 
-# SERVICE CANDIDATE: expenses.spending_by_type(from_date, to_date) -> per type per month
 def category_spending(months: list[datetime.date]) -> CategorySpending:
     """How much went on each expense type in each of the given months."""
-    expenses: list[ExpenseDto] = list(
-        search_expenses(ExpenseFilterDto(from_date=months[0], to_date=month_end(months[-1])))
-    )
+    rows = spending_by_type(months[0], month_end(months[-1]))
     amounts: dict[tuple[str, datetime.date], decimal.Decimal] = defaultdict(lambda: ZERO)
-    for e in expenses:
-        amounts[(e.expense_type.name, e.date.replace(day=1))] += e.price
+    for row in rows:
+        amounts[(row.expense_type.name, row.month)] += row.total
 
     totals: dict[str, decimal.Decimal] = defaultdict(lambda: ZERO)
     for (name, _), amount in amounts.items():

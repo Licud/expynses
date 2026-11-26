@@ -10,6 +10,7 @@ class Base(DeclarativeBase):
 
 class Expense(Base):
     __tablename__ = "expenses"
+    expense_type: Mapped[ExpenseType] = relationship()
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     date: Mapped[datetime.date]

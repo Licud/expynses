@@ -66,13 +66,15 @@ def _hero(
     on_credit = sum((e.price for e in expenses if e.is_credit), ZERO)
     paid = spent - on_credit
     card_paid = sum((p.amount for p in payments), ZERO)
+    card_paid_from_account = sum((p.amount for p in payments if not p.is_external), ZERO)
     # Credit card spending isn't paid from this month's income; what comes off
-    # what's left is paid-in-full spending, the card payments made this month and
-    # the debits ticked off this month (savings included, never shown apart).
+    # what's left is paid-in-full spending, the card payments made this month from
+    # the account (external ones only clear the card) and the debits ticked off
+    # this month (savings included, never shown apart).
     # Whatever was left over from earlier months rolls in on top of this month's income.
     available = income + carried_over
     used = paid + debits
-    left = available - used - card_paid
+    left = available - used - card_paid_from_account
     # The bar is measured against what's available, or against what's used if that is bigger.
     scale = max(available, used)
     parts = [

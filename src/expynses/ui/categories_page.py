@@ -14,10 +14,12 @@ from expynses.ui.report_widgets import empty_state, page_header, period_switcher
 from expynses.ui.reports_data import (
     ZERO,
     CategorySpending,
+    RepeatPurchase,
     add_months,
     all_category_names,
     category_spending,
     months_ending,
+    repeat_purchases_in,
 )
 
 RANGES = {"3 months": 3, "6 months": 6, "12 months": 12}
@@ -293,6 +295,72 @@ def _heatmap(data: CategorySpending, names: list[str], this_month: datetime.date
 
 
 
+def _repeats_card(repeats: list[RepeatPurchase], period: str) -> ft.Control:
+    """The notes bought three or more times, biggest total first."""
+    count_width, average_width, total_width, bar_width = 56, 96, 104, 120
+
+    def header_cell(text: str, width: float) -> ft.Control:
+        return ft.Container(width=width, alignment=ft.Alignment.CENTER_RIGHT,
+                            content=ft.Text(text.upper(), style=theme.label_style()))
+
+    def cell(text: str, width: float, color: str = theme.TEXT_SOFT, bold: bool = False) -> ft.Control:
+        return ft.Container(
+            width=width,
+            alignment=ft.Alignment.CENTER_RIGHT,
+            content=ft.Text(text, size=13, color=color,
+                            weight=ft.FontWeight.W_600 if bold else ft.FontWeight.W_400),
+        )
+
+    if not repeats:
+        body: list[ft.Control] = [empty_state(ft.Icons.REPLAY, "Nothing bought three or more times with the same note")]
+    else:
+        biggest = repeats[0].total
+        body = [
+            ft.Row(
+                [
+                    ft.Container(expand=True, content=theme.label("Note")),
+                    header_cell("Times", count_width),
+                    header_cell("Each", average_width),
+                    header_cell("Total", total_width),
+                    ft.Container(width=bar_width),
+                ],
+                spacing=12,
+            )
+        ]
+        for item in repeats:
+            body.append(
+                ft.Row(
+                    [
+                        ft.Text(item.note, size=13, color=theme.TEXT, expand=True, no_wrap=True,
+                                overflow=ft.TextOverflow.ELLIPSIS, tooltip=item.note),
+                        cell(f"{item.count}×", count_width, theme.MUTED),
+                        cell(theme.money(item.average), average_width),
+                        cell(theme.money(item.total), total_width, theme.TEXT, bold=True),
+                        ft.Container(width=bar_width,
+                                     content=theme.bar([(float(item.total / biggest), theme.ACCENT)], height=4)),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
+    return theme.card(
+        ft.Column(
+            [
+                theme.card_title("Repeat purchases", theme.badge(f"Top {len(repeats)}") if repeats else None),
+                ft.Text(
+                    f"The same note bought three or more times, {period}. Small and often adds up.",
+                    size=12,
+                    color=theme.MUTED,
+                ),
+                ft.Container(height=6),
+                *body,
+            ],
+            spacing=10,
+        ),
+        padding=ft.Padding.only(left=20, right=24, top=20, bottom=18),
+    )
+
+
 def categories_view(page: ft.Page) -> ft.Control:
     today = datetime.date.today()
     this_month = today.replace(day=1)
@@ -331,8 +399,10 @@ def categories_view(page: ft.Page) -> ft.Control:
             body.controls = [theme.card(empty_state(ft.Icons.PIE_CHART_OUTLINE, "No spending in these months"))]
             return
         draw_chart()
+        repeats = repeat_purchases_in(months)
+        period = f"in the last {count} months" if first <= this_month <= last else "in these months"
         body.controls = [_stats(data), chart_box, _heatmap(data, all_category_names(), this_month),
-                         ft.Container(height=8)]
+                         _repeats_card(repeats, period), ft.Container(height=8)]
 
     def refresh():
         load()

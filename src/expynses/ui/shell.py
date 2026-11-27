@@ -8,6 +8,7 @@ from expynses.ui import theme
 from expynses.ui.cash_flow_page import cash_flow_view
 from expynses.ui.categories_page import categories_view
 from expynses.ui.debit_page import debits_view
+from expynses.ui.forecasts_page import forecasts_view
 from expynses.ui.income_page import income_view
 from expynses.ui.monthly import monthly_view
 from expynses.ui.year_page import year_view
@@ -29,6 +30,7 @@ NAV_ITEMS = [
     NavItem("Year", ft.Icons.CALENDAR_VIEW_MONTH_OUTLINED, year_view),
     NavItem("Cash flow", ft.Icons.COMPARE_ARROWS, cash_flow_view),
     NavItem("Categories", ft.Icons.DONUT_SMALL_OUTLINED, categories_view),
+    NavItem("Forecasts", ft.Icons.INSIGHTS_OUTLINED, forecasts_view),
 ]
 
 

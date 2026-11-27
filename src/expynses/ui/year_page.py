@@ -4,16 +4,19 @@ import datetime
 
 import flet as ft
 
+from expynses.contracts.expenses import ExpenseDto
 from expynses.ui import theme
 from expynses.ui.charts import Bar, Group, bar_chart, legend
+from expynses.ui.expense_type_icons import icon_for_type
 from expynses.ui.report_widgets import (
+    empty_state,
     net_color,
     page_header,
     period_switcher,
     signed_money,
     stat_tile,
 )
-from expynses.ui.reports_data import ZERO, MonthFigures, year_figures
+from expynses.ui.reports_data import ZERO, MonthFigures, biggest_purchases, year_figures
 
 ACCOUNT_COLOR = theme.SLATE
 DEBT_COLOR = theme.AMBER
@@ -136,6 +139,52 @@ def _month_tile(f: MonthFigures, this_month: datetime.date) -> ft.Control:
     )
 
 
+def _biggest_card(purchases: list[ExpenseDto]) -> ft.Control:
+    """The year's most expensive single purchases, biggest first."""
+    if not purchases:
+        body: list[ft.Control] = [empty_state(ft.Icons.RECEIPT_LONG, "No purchases this year")]
+    else:
+        body = []
+        for rank, e in enumerate(purchases, start=1):
+            title = e.notes.strip() or e.expense_type.name
+            right: list[ft.Control] = []
+            if e.is_credit:
+                right.append(theme.badge("Card", theme.AMBER))
+            right.append(ft.Text(theme.money(e.price), size=14, weight=ft.FontWeight.W_600, color=theme.TEXT))
+            body.append(
+                ft.Row(
+                    [
+                        ft.Text(str(rank), size=12, color=theme.MUTED, width=20),
+                        theme.icon_tile(icon_for_type(e.expense_type.name), theme.ACCENT_TEXT, size=30),
+                        ft.Column(
+                            [
+                                ft.Text(title, size=13, color=theme.TEXT, no_wrap=True,
+                                        overflow=ft.TextOverflow.ELLIPSIS, tooltip=title),
+                                ft.Text(f"{e.date:%a %d %b} · {e.expense_type.name}", size=12, color=theme.MUTED),
+                            ],
+                            spacing=1,
+                            expand=True,
+                        ),
+                        *right,
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
+    return theme.card(
+        ft.Column(
+            [
+                theme.card_title("Biggest purchases"),
+                ft.Text("The single most expensive things bought this year, card or not.", size=12, color=theme.MUTED),
+                ft.Container(height=6),
+                *body,
+            ],
+            spacing=12,
+        ),
+        padding=ft.Padding.only(left=20, right=24, top=20, bottom=18),
+    )
+
+
 def year_view(page: ft.Page) -> ft.Control:
     today = datetime.date.today()
     this_month = today.replace(day=1)
@@ -144,6 +193,7 @@ def year_view(page: ft.Page) -> ft.Control:
     title = theme.heading("", size=30)
     stats_box = ft.Container()
     chart_box = ft.Container()
+    biggest_box = ft.Container()
     tiles = ft.ResponsiveRow(spacing=14, run_spacing=14)
 
     def load():
@@ -152,6 +202,7 @@ def year_view(page: ft.Page) -> ft.Control:
         stats_box.content = _stats(figures)
         chart_box.content = _chart(figures, this_month)
         tiles.controls = [_month_tile(f, this_month) for f in figures]
+        biggest_box.content = _biggest_card(biggest_purchases(state["year"]))
 
     def shift(delta: int):
         state["year"] += delta
@@ -174,7 +225,7 @@ def year_view(page: ft.Page) -> ft.Control:
         [
             header,
             ft.Column(
-                [stats_box, chart_box, theme.label("Month by month"), tiles, ft.Container(height=8)],
+                [stats_box, chart_box, theme.label("Month by month"), tiles, biggest_box, ft.Container(height=8)],
                 spacing=20,
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,

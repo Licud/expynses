@@ -23,6 +23,7 @@ from expynses.ui.expense_list import category_card, transactions_card
 from expynses.ui.forms import credit_payment_form, expense_form, income_form
 from expynses.ui.income_list import income_card
 from expynses.ui.month_picker import open_month_picker
+from expynses.ui.reports_data import NoSpendDays, left_to_spend, no_spend_days
 
 ZERO = decimal.Decimal(0)
 RAIL_WIDTH = 340
@@ -40,14 +41,29 @@ def _legend(color: str, caption: str, amount: decimal.Decimal) -> ft.Control:
     )
 
 
-def _side_stat(icon: ft.IconData, color: str, caption: str, value: str) -> ft.Control:
-    return ft.Row(
+def _side_stat(
+    icon: ft.IconData, color: str, caption: str, value: str, tooltip: str | None = None
+) -> ft.Control:
+    row = ft.Row(
         [
             theme.icon_tile(icon, color, size=30),
             ft.Text(caption, size=13, color=theme.MUTED, expand=True),
             ft.Text(value, size=15, weight=ft.FontWeight.W_600, color=theme.TEXT),
         ],
         spacing=12,
+    )
+    return ft.Container(content=row, tooltip=tooltip) if tooltip else row
+
+
+def _no_spend_stat(no_spend: NoSpendDays, is_current_month: bool) -> ft.Control:
+    """Days with nothing bought, out of the days so far."""
+    if not no_spend.days:
+        return _side_stat(ft.Icons.NOT_INTERESTED, theme.GREEN, "No-spend days", "—")
+    tip = f"Longest run: {no_spend.longest_run} {'day' if no_spend.longest_run == 1 else 'days'}"
+    if is_current_month:
+        tip += f" · current run: {no_spend.current_run} {'day' if no_spend.current_run == 1 else 'days'}"
+    return _side_stat(
+        ft.Icons.NOT_INTERESTED, theme.GREEN, "No-spend days", f"{no_spend.no_spend} of {no_spend.days}", tip
     )
 
 
@@ -59,6 +75,8 @@ def _hero(
     carried_over: decimal.Decimal,
     debits: decimal.Decimal,
     daily: decimal.Decimal,
+    no_spend: NoSpendDays,
+    is_current_month: bool,
 ) -> ft.Control:
     """The month at a glance: what's left, a spend bar and the key numbers."""
     income = sum((i.amount for i in incomes), ZERO)
@@ -66,7 +84,6 @@ def _hero(
     on_credit = sum((e.price for e in expenses if e.is_credit), ZERO)
     paid = spent - on_credit
     card_paid = sum((p.amount for p in payments), ZERO)
-    card_paid_from_account = sum((p.amount for p in payments if not p.is_external), ZERO)
     # Credit card spending isn't paid from this month's income; what comes off
     # what's left is paid-in-full spending, the card payments made this month from
     # the account (external ones only clear the card) and the debits ticked off
@@ -74,7 +91,7 @@ def _hero(
     # Whatever was left over from earlier months rolls in on top of this month's income.
     available = income + carried_over
     used = paid + debits
-    left = available - used - card_paid_from_account
+    left = left_to_spend(expenses, incomes, payments, carried_over, debits)
     # The bar is measured against what's available, or against what's used if that is bigger.
     scale = max(available, used)
     parts = [
@@ -136,6 +153,7 @@ def _hero(
                 _side_stat(ft.Icons.EVENT_REPEAT, theme.MAUVE, "Debits", theme.money(debits)),
                 _side_stat(ft.Icons.CREDIT_CARD, theme.AMBER, "Credit card owed", theme.money(card_balance)),
                 _side_stat(ft.Icons.SHOW_CHART, theme.SLATE, "Daily average", theme.money(daily)),
+                _no_spend_stat(no_spend, is_current_month),
             ],
             spacing=14,
             alignment=ft.MainAxisAlignment.CENTER,
@@ -234,8 +252,11 @@ def monthly_view(page: ft.Page) -> ft.Control:
         month_title.value = start.strftime("%B %Y")
         carried_over = balance(to_date=start - datetime.timedelta(days=1))
         debits = total_debit_payments(DebitPaymentFilterDto(given_date=start))
+        # Only the days so far count: today is included, like the daily average above.
+        no_spend = no_spend_days(expenses, start, min(end, today))
         hero_box.content = _hero(
-            expenses, incomes, payments, credit_balance(to_date=end), carried_over, debits, daily_average(expenses)
+            expenses, incomes, payments, credit_balance(to_date=end), carried_over, debits, daily_average(expenses),
+            no_spend, start == this_month,
         )
         this_months_debits = month_debits(start)
         # The pill on the Debits button counts what still needs ticking off.

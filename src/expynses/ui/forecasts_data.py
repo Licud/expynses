@@ -10,18 +10,12 @@ import decimal
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
-from expynses.contracts.credit_payments import CreditPaymentFilterDto
-from expynses.contracts.debits import DebitPaymentFilterDto, DebitTemplateDto, DebitTemplateFilterDto
-from expynses.contracts.expenses import ExpenseFilterDto
-from expynses.contracts.incomes import IncomeFilterDto
+from expynses.contracts.debits import DebitTemplateDto, DebitTemplateFilterDto
 from expynses.contracts.totals import MonthFiguresDto
-from expynses.services.credit_payments import search_credit_payments
 from expynses.services.debits import search_debit_templates
-from expynses.services.expenses import search_expenses
-from expynses.services.incomes import search_incomes
-from expynses.services.totals import balance, monthly_figures, total_debit_payments
+from expynses.services.totals import left_to_spend_for_month, monthly_figures
 from expynses.ui.debit_month_dialog import _due_in, month_debits, pending
-from expynses.ui.reports_data import ZERO, add_months, left_to_spend, month_end
+from expynses.ui.reports_data import ZERO, add_months
 
 MAX_MONTHS = 36  # how far ahead the forecast looks
 
@@ -116,19 +110,10 @@ class ForecastInputs:
 def load_inputs(today: datetime.date | None = None) -> ForecastInputs:
     today = today or datetime.date.today()
     start_of_month = today.replace(day=1)
-    end_of_month = month_end(start_of_month)
-
-    # The same gathering the Monthly page does, so the starting number matches its hero.
-    expenses = list(search_expenses(ExpenseFilterDto(from_date=start_of_month, to_date=end_of_month)))
-    incomes = list(search_incomes(IncomeFilterDto(from_date=start_of_month, to_date=end_of_month)))
-    payments = list(search_credit_payments(CreditPaymentFilterDto(from_date=start_of_month, to_date=end_of_month)))
-    carried_over = balance(to_date=start_of_month - datetime.timedelta(days=1))
-    debits = total_debit_payments(DebitPaymentFilterDto(given_date=start_of_month))
-    start = left_to_spend(expenses, incomes, payments, carried_over, debits)
 
     return ForecastInputs(
         today=today,
-        start=start,
+        start=left_to_spend_for_month(start_of_month),
         pending_now=sum((d.amount for d in pending(month_debits(start_of_month))), ZERO),
         templates=list(search_debit_templates(DebitTemplateFilterDto())),
         figures=list(monthly_figures(today.year)),
